@@ -210,6 +210,22 @@ select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-righ
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.gold{background:var(--gold);color:var(--gold-ink)}
 .sync{font-size:12px;color:var(--muted);margin:14px 4px 0}
+[hidden]{display:none!important}
+.iconbtn.synced{color:#2fb894}
+.iconbtn.warn{color:#ee6a5f}
+.modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(10,16,24,.55)}
+.modal.open{display:flex}
+.mbox{background:var(--surface);color:var(--ink);width:100%;max-width:520px;max-height:90vh;overflow:auto;padding:24px}
+.mbox h3{margin:0 0 6px;font-size:22px}
+.mbox p{color:var(--muted);margin:0 0 14px}
+.mbox ol{margin:0 0 16px;padding-left:20px}
+.mbox li{margin-bottom:6px}
+.mbox a{color:var(--focus)}
+.mbox .field{width:100%;margin-bottom:10px;font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.mrow{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.ghost{background:var(--surface-2);padding:10px 16px;font-weight:600}
+.merr{color:#ee6a5f;font-size:14px;min-height:20px;margin-bottom:8px}
+.who{font-size:18px;font-weight:600;margin-bottom:14px}
 
 @media (max-width:760px){
   .app{padding:14px 12px 50px}
@@ -248,6 +264,7 @@ select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-righ
       <span class="xptext" id="xptext"></span>
       <span class="today" id="today"></span>
     </div>
+    <button class="iconbtn cut" id="syncBtn" title="Sync across computers" aria-label="Sync across computers" hidden>☁︎</button>
     <button class="iconbtn cut" id="themeBtn" title="Switch light / dark" aria-label="Switch light or dark mode">◐</button>
   </header>
   <div class="layout">
@@ -256,6 +273,9 @@ select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-righ
   </div>
 </div>
 <div class="toast cut" id="toast" role="status" aria-live="polite"></div>
+<div class="modal" id="syncModal" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
+  <div class="mbox cut" id="syncBox"></div>
+</div>
 
 <script>
 (function(){
@@ -282,11 +302,15 @@ const projFrac=p=>p.tasks.length?p.tasks.reduce((a,t)=>a+(t.done?1:(t.prog||0)/1
 
 /* ---------- persistence: this device + your claude.ai account ---------- */
 let docRef=null, saveTimer=null, syncLabel="Saved on this device";
+const GFILE="questlog.json";
+const GH={tok:null,id:null,user:null};
+try{GH.tok=localStorage.getItem("questlog.ghtoken");GH.id=localStorage.getItem("questlog.gistid");GH.user=localStorage.getItem("questlog.ghuser");}catch(e){}
 function save(){
   state.updatedAt=Date.now();
   try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
   clearTimeout(saveTimer);
   if(docRef) saveTimer=setTimeout(()=>{docRef.set({json:JSON.stringify(state),updatedAt:state.updatedAt}).catch(()=>{});},700);
+  if(GH.tok&&GH.id) gistPushSoon();
 }
 (async()=>{
   try{
@@ -670,6 +694,136 @@ document.getElementById("themeBtn").addEventListener("click",()=>{
   const dark=root.dataset.theme?root.dataset.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches;
   root.dataset.theme=dark?"light":"dark";try{localStorage.setItem("questlog.theme",root.dataset.theme);}catch(e){}
 });
+
+/* ---------- GitHub sync (used on the GitHub Pages copy) ---------- */
+function setSync(label,cls){
+  syncLabel=label;
+  const el=document.querySelector(".sync");if(el)el.textContent=label;
+  const b=document.getElementById("syncBtn");b.classList.remove("synced","warn");if(cls)b.classList.add(cls);
+  b.title=label;
+}
+async function gh(path,opt){
+  opt=opt||{};
+  const r=await fetch("https://api.github.com"+path,Object.assign({},opt,{cache:"no-store",headers:Object.assign(
+    {"Authorization":"Bearer "+GH.tok,"Accept":"application/vnd.github+json"},opt.body?{"Content-Type":"application/json"}:{})}));
+  if(!r.ok){const e=new Error("GitHub "+r.status);e.status=r.status;throw e;}
+  return r.json();
+}
+async function gistFind(){
+  if(GH.id) return GH.id;
+  for(let page=1;page<=10;page++){
+    const list=await gh("/gists?per_page=100&page="+page);
+    const g=list.find(x=>x.files&&x.files[GFILE]);
+    if(g){GH.id=g.id;break;}
+    if(list.length<100) break;
+  }
+  if(!GH.id){
+    const g=await gh("/gists",{method:"POST",body:JSON.stringify({description:"Quest Log data (synced by the app, keep this)",public:false,
+      files:{[GFILE]:{content:JSON.stringify(state)}}})});
+    GH.id=g.id;
+  }
+  try{localStorage.setItem("questlog.gistid",GH.id);}catch(e){}
+  return GH.id;
+}
+let pushTimer=null,lastPull=0,pulling=false;
+function gistPushSoon(){clearTimeout(pushTimer);setSync("Syncing…");pushTimer=setTimeout(gistPush,1500);}
+async function gistPush(){
+  pushTimer=null;
+  if(!GH.tok||!GH.id) return;
+  try{await gh("/gists/"+GH.id,{method:"PATCH",body:JSON.stringify({files:{[GFILE]:{content:JSON.stringify(state)}}})});
+    setSync("Synced to GitHub · "+GH.user,"synced");}
+  catch(e){setSync(e.status===401?"Sync key expired. Click ☁ to reconnect":"Couldn’t sync. Saved on this device","warn");}
+}
+async function gistPull(){
+  if(!GH.tok||pulling) return; pulling=true;
+  try{
+    const id=await gistFind();
+    const g=await gh("/gists/"+id);
+    const f=g.files&&g.files[GFILE];
+    if(!f){GH.id=null;try{localStorage.removeItem("questlog.gistid");}catch(e){} pulling=false;return gistPull();}
+    let txt=f.content; if(f.truncated) txt=await (await fetch(f.raw_url,{cache:"no-store"})).text();
+    let remote={};try{remote=JSON.parse(txt||"{}");}catch(e){}
+    if((remote.updatedAt||0)>(state.updatedAt||0)){
+      const view=state.view;
+      state=Object.assign(blank(),remote);
+      if(view==="all"||view==="today"||proj(view)) state.view=view;
+      try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+      if(!editing) render();
+    } else if((remote.updatedAt||0)<(state.updatedAt||0)) await gistPush();
+    setSync("Synced to GitHub · "+GH.user,"synced");
+    lastPull=Date.now();
+  }catch(e){
+    setSync(e.status===401?"Sync key expired. Click ☁ to reconnect":"Couldn’t reach GitHub. Saved on this device","warn");
+  }
+  pulling=false;
+}
+const TOKEN_URL="https://github.com/settings/tokens/new?scopes=gist&description=Quest%20Log%20sync";
+function openSync(){
+  const box=document.getElementById("syncBox");
+  if(GH.tok){
+    box.innerHTML=`<h3 id="syncTitle">Synced across computers</h3>
+      <div class="who">Signed in as ${esc(GH.user||"GitHub user")}</div>
+      <p>Your tasks are saved to a private gist on your GitHub account and load on any computer where you sign in here.</p>
+      <div class="mrow"><button class="ghost cut" data-m="signout">Sign out on this computer</button>
+      <button class="go cut" data-m="close">Done</button></div>`;
+  } else {
+    box.innerHTML=`<h3 id="syncTitle">Sync across computers</h3>
+      <p>Sign in once on each computer with a GitHub sync key. Your tasks are stored privately in your own GitHub account. It’s free.</p>
+      <ol>
+        <li><a href="${TOKEN_URL}" target="_blank" rel="noopener">Open the sync key page on GitHub</a> (everything is pre-filled).</li>
+        <li>Set <b>Expiration</b> to <b>No expiration</b>, scroll down and click <b>Generate token</b>.</li>
+        <li>Copy the key (starts with <b>ghp_</b>) and paste it below. Keep a copy somewhere safe to use on your other computers.</li>
+      </ol>
+      <input class="field" id="tokIn" placeholder="ghp_…" aria-label="GitHub sync key" autocomplete="off" spellcheck="false">
+      <div class="merr" id="tokErr"></div>
+      <div class="mrow"><button class="ghost cut" data-m="close">Cancel</button><button class="go cut" data-m="connect">Sign in</button></div>`;
+  }
+  document.getElementById("syncModal").classList.add("open");
+  const ti=document.getElementById("tokIn");if(ti)ti.focus();
+}
+function closeSync(){document.getElementById("syncModal").classList.remove("open");}
+async function connect(){
+  const v=(document.getElementById("tokIn").value||"").trim(), err=document.getElementById("tokErr");
+  if(!v){err.textContent="Paste your sync key first.";return;}
+  err.textContent="Checking…";
+  GH.tok=v;
+  try{
+    const u=await gh("/user");
+    GH.user=u.login;
+    try{localStorage.setItem("questlog.ghtoken",v);localStorage.setItem("questlog.ghuser",u.login);}catch(e){}
+    GH.id=null; try{localStorage.removeItem("questlog.gistid");}catch(e){}
+    await gistPull();
+    if(!GH.id) throw Object.assign(new Error("no gist"),{status:403});
+    closeSync(); toast("Signed in. Your tasks will sync",true);
+  }catch(e){
+    GH.tok=null;GH.user=null;
+    err.textContent=e.status===401?"That key didn’t work. Check you copied all of it.":e.status===403||e.status===404?"That key doesn’t have the gist permission. Use the link in step 1.":"Couldn’t reach GitHub. Check your connection and try again.";
+  }
+}
+function signOut(){
+  GH.tok=GH.id=GH.user=null;
+  try{["questlog.ghtoken","questlog.gistid","questlog.ghuser"].forEach(k=>localStorage.removeItem(k));}catch(e){}
+  setSync("Saved on this device");closeSync();toast("Signed out on this computer");
+}
+document.getElementById("syncBtn").addEventListener("click",openSync);
+document.getElementById("syncModal").addEventListener("click",e=>{
+  if(e.target.id==="syncModal") return closeSync();
+  const m=e.target.closest("[data-m]");if(!m) return;
+  ({close:closeSync,connect:connect,signout:signOut})[m.dataset.m]();
+});
+document.getElementById("syncModal").addEventListener("keydown",e=>{
+  if(e.key==="Escape") closeSync();
+  if(e.key==="Enter"&&e.target.id==="tokIn"){e.preventDefault();connect();}
+});
+const inClaude=!!(window.claude&&window.claude.use);
+if(!inClaude){
+  document.getElementById("syncBtn").hidden=false;
+  if(GH.tok){setSync("Connecting to GitHub…");gistPull();}
+  const maybePull=()=>{if(GH.tok&&document.visibilityState==="visible"&&Date.now()-lastPull>15000&&!pushTimer) gistPull();};
+  document.addEventListener("visibilitychange",maybePull);
+  window.addEventListener("focus",maybePull);
+  setInterval(maybePull,60000);
+}
 
 drawFacets();render();
 })();
