@@ -211,8 +211,15 @@ select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-righ
 .toast.gold{background:var(--gold);color:var(--gold-ink)}
 .sync{font-size:12px;color:var(--muted);margin:14px 4px 0}
 [hidden]{display:none!important}
-.iconbtn.synced{color:#2fb894}
-.iconbtn.warn{color:#ee6a5f}
+.userbtn{height:38px;padding:0 14px 0 8px;display:flex;align-items:center;gap:9px;background:var(--surface);font-weight:600;font-size:14px}
+.userbtn:hover{background:var(--surface-2)}
+.userbtn.out{padding:0 16px;background:var(--ink);color:var(--bg)}
+.userbtn .av{width:26px;height:26px;display:grid;place-items:center;background:var(--gold);color:var(--gold-ink);font-size:13px;
+  clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.userbtn .un{max-width:16ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.userbtn .dot{width:8px;height:8px;background:var(--muted);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.userbtn.synced .dot{background:#2fb894}
+.userbtn.warn .dot{background:#ee6a5f}
 .modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(10,16,24,.55)}
 .modal.open{display:flex}
 .mbox{background:var(--surface);color:var(--ink);width:100%;max-width:520px;max-height:90vh;overflow:auto;padding:24px}
@@ -264,8 +271,8 @@ select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-righ
       <span class="xptext" id="xptext"></span>
       <span class="today" id="today"></span>
     </div>
-    <button class="iconbtn cut" id="syncBtn" title="Sync across computers" aria-label="Sync across computers" hidden>☁︎</button>
     <button class="iconbtn cut" id="themeBtn" title="Switch light / dark" aria-label="Switch light or dark mode">◐</button>
+    <button class="userbtn cut" id="syncBtn" title="Account" hidden>Sign in</button>
   </header>
   <div class="layout">
     <nav class="side" id="side" aria-label="Projects"></nav>
@@ -700,7 +707,19 @@ function setSync(label,cls){
   syncLabel=label;
   const el=document.querySelector(".sync");if(el)el.textContent=label;
   const b=document.getElementById("syncBtn");b.classList.remove("synced","warn");if(cls)b.classList.add(cls);
-  b.title=label;
+  renderUser(label);
+}
+function renderUser(label){
+  const b=document.getElementById("syncBtn");
+  if(GH.tok){
+    const n=GH.user||"Signed in";
+    b.classList.remove("out");
+    b.innerHTML=`<span class="av" aria-hidden="true">${esc(n.charAt(0).toUpperCase())}</span><span class="un">${esc(n)}</span><span class="dot" aria-hidden="true"></span>`;
+    b.title=n+" · "+(label||syncLabel);b.setAttribute("aria-label","Account: "+n+". "+(label||syncLabel));
+  } else {
+    b.classList.add("out");b.classList.remove("synced","warn");
+    b.textContent="Sign in";b.title="Sign in to sync across computers";b.setAttribute("aria-label","Sign in");
+  }
 }
 async function gh(path,opt){
   opt=opt||{};
@@ -767,7 +786,7 @@ async function pwKey(pw,salt,iter){
 }
 async function setPassword(){
   const p1=document.getElementById("pw1").value, p2=document.getElementById("pw2").value, err=document.getElementById("pwErr");
-  if(p1.length<10){err.textContent="Use at least 10 characters.";return;}
+  if(p1.length<4){err.textContent="Use at least 4 characters.";return;}
   if(p1!==p2){err.textContent="The passwords don’t match.";return;}
   err.textContent="Saving…";
   try{
@@ -817,7 +836,7 @@ function openSync(){
       <p>Your tasks are saved to your GitHub account and load on any computer where you sign in.</p>
       <h3 style="font-size:17px;margin-top:6px">${localStorage.getItem("questlog.haspw")?"Change your password":"Set a password for other computers"}</h3>
       <p>Then on any other computer you just sign in with your username and this password. No key needed.</p>
-      <input class="field" id="pw1" type="password" placeholder="New password (10+ characters)" aria-label="New password" autocomplete="new-password">
+      <input class="field" id="pw1" type="password" placeholder="New password" aria-label="New password" autocomplete="new-password">
       <input class="field" id="pw2" type="password" placeholder="Type it again" aria-label="Confirm password" autocomplete="new-password">
       <div class="merr" id="pwErr"></div>
       <div class="mrow"><button class="ghost cut" data-m="signout">Sign out on this computer</button>
@@ -883,6 +902,7 @@ document.getElementById("syncModal").addEventListener("keydown",e=>{
 const inClaude=!!(window.claude&&window.claude.use);
 if(!inClaude){
   document.getElementById("syncBtn").hidden=false;
+  renderUser();
   if(GH.tok){setSync("Connecting to GitHub…");gistPull();}
   else{let skip=false;try{skip=!!localStorage.getItem("questlog.skipsignin");}catch(e){} if(!skip) openSync();}
   const maybePull=()=>{if(GH.tok&&document.visibilityState==="visible"&&Date.now()-lastPull>15000&&!pushTimer) gistPull();};
