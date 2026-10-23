@@ -180,8 +180,12 @@ select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-righ
 .task:hover .x,.task:focus-within .x{opacity:1}
 @media (hover:none){.task .x{opacity:1}}
 .editin{flex:1;background:var(--surface);border:0;padding:4px 8px;box-shadow:inset 0 0 0 2px var(--focus)}
-.donehead{display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--muted);font-size:14px;font-weight:600;padding:6px 0}
-.donehead:hover{color:var(--ink)}
+.donecard{padding:14px 22px;opacity:.92}
+.donehead{display:flex;align-items:center;gap:10px;width:100%;text-align:left;color:var(--ink);font-size:16px;font-weight:600;padding:4px 0}
+.donehead .chev{color:var(--muted);width:14px}
+.donehead .dn{font-size:13px;padding:1px 8px;background:var(--surface-2);color:var(--muted)}
+.donehead:hover .chev{color:var(--ink)}
+.donelist{margin-top:10px}
 .empty{color:var(--muted);padding:14px 0;font-size:15px}
 .group{margin-bottom:18px}
 .group:last-child{margin-bottom:0}
@@ -352,8 +356,8 @@ function gemSVG(color,progress,size){
     const a=pts[i],b=pts[(i+1)%6];
     const on=i<lit;
     const shade=[0,.18,.32,.12,.26,.06][i];
-    s+=`<polygon points="50,50 ${a[0].toFixed(1)},${a[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}" fill="${color}" fill-opacity="${on?1:.32}" />`;
-    s+=`<polygon points="50,50 ${a[0].toFixed(1)},${a[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}" fill="#000" fill-opacity="${on?shade:shade*.5}" />`;
+    s+=`<polygon points="50,50 ${a[0].toFixed(1)},${a[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}" fill="${color}" fill-opacity="${on?1:.7}" />`;
+    s+=`<polygon points="50,50 ${a[0].toFixed(1)},${a[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}" fill="#000" fill-opacity="${on?shade:shade*.6+.38}" />`;
   }
   return s+"</svg>";
 }
@@ -481,9 +485,12 @@ function renderToday(){
       <button class="go cut" data-act="addtoday">Add</button></div>
     ${planned.length?planned.map(x=>taskRow(x.p,x.t,true)).join(""):`<div class="empty">Nothing on today’s list. Add a task above, or tap ☀︎ on any task in a project or in Everything open.</div>`}
     ${starred.length?`<div class="suggest"><h3>Starred tasks not on today yet</h3>${starred.map(x=>taskRow(x.p,x.t,true)).join("")}</div>`:""}
-    ${done.length?`<button class="donehead" data-act="togtodaydone" aria-expanded="${!!state.showTodayDone}">${state.showTodayDone?"▾":"▸"} Done today (${done.length})</button>
-      ${state.showTodayDone?done.map(x=>taskRow(x.p,x.t,true)).join(""):""}`:""}
-  </section>`;
+  </section>
+  ${done.length?`<section class="panel cut donecard" style="--pc:#f08c3a">
+    <button class="donehead" data-act="togtodaydone" aria-expanded="${!!state.showTodayDone}"><span class="chev">${state.showTodayDone?"▾":"▸"}</span>
+      <span class="dt">Completed today</span><span class="dn">${done.length}</span></button>
+    ${state.showTodayDone?`<div class="donelist">${done.map(x=>taskRow(x.p,x.t,true)).join("")}</div>`:""}
+  </section>`:""}`;
   m.innerHTML=h;
 }
 function addToday(){
@@ -544,9 +551,12 @@ function renderProject(p){
     <div class="taskadd"><input class="field" id="newtask" placeholder="Add a task and press Enter" aria-label="New task">
       <button class="go cut" data-act="addtask">Add</button></div>
     ${open.length?open.map(t=>taskRow(p,t,false)).join(""):`<div class="empty">${tot?"Nothing left. Nice work.":"Add the first task above."}</div>`}
-    ${closed.length?`<button class="donehead" data-act="togdone" aria-expanded="${showDone}">${showDone?"▾":"▸"} Done (${closed.length})</button>
-      ${showDone?closed.map(t=>taskRow(p,t,false)).join("")+`<button class="danger" data-act="cleardone">Clear done tasks</button>`:""}`:""}
   </section>
+  ${closed.length?`<section class="panel cut donecard" style="--pc:${p.color}">
+    <button class="donehead" data-act="togdone" aria-expanded="${showDone}"><span class="chev">${showDone?"▾":"▸"}</span>
+      <span class="dt">Completed</span><span class="dn">${closed.length}</span></button>
+    ${showDone?`<div class="donelist">${closed.map(t=>taskRow(p,t,false)).join("")}</div><button class="danger" data-act="cleardone">Clear completed tasks</button>`:""}
+  </section>`:""}
 
   <section class="panel cut" style="--pc:${p.color}">
     <h2>Folders <span class="n">tap Copy, then paste into Explorer or Finder</span></h2>
