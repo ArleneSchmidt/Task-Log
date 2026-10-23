@@ -758,28 +758,90 @@ async function gistPull(){
   pulling=false;
 }
 const TOKEN_URL="https://github.com/settings/tokens/new?scopes=gist&description=Quest%20Log%20sync";
+const DEFAULT_USER="ArleneSchmidt", LOGIN_FILE="questlog-login.json", ITER=600000;
+const b64=u=>{let t="";u.forEach(x=>t+=String.fromCharCode(x));return btoa(t);};
+const unb64=x=>Uint8Array.from(atob(x),c=>c.charCodeAt(0));
+async function pwKey(pw,salt,iter){
+  const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function setPassword(){
+  const p1=document.getElementById("pw1").value, p2=document.getElementById("pw2").value, err=document.getElementById("pwErr");
+  if(p1.length<10){err.textContent="Use at least 10 characters.";return;}
+  if(p1!==p2){err.textContent="The passwords don’t match.";return;}
+  err.textContent="Saving…";
+  try{
+    const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+    const key=await pwKey(p1,salt,ITER);
+    const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(GH.tok)));
+    const content=JSON.stringify({v:1,iter:ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)});
+    let existing=null;
+    for(let page=1;page<=10&&!existing;page++){
+      const list=await gh("/gists?per_page=100&page="+page);
+      existing=list.find(x=>x.files&&x.files[LOGIN_FILE]);
+      if(list.length<100) break;
+    }
+    if(existing) await gh("/gists/"+existing.id,{method:"PATCH",body:JSON.stringify({files:{[LOGIN_FILE]:{content}}})});
+    else await gh("/gists",{method:"POST",body:JSON.stringify({description:"Quest Log sign-in (encrypted, keep this)",public:true,files:{[LOGIN_FILE]:{content}}})});
+    try{localStorage.setItem("questlog.haspw","1");}catch(e){}
+    closeSync();toast("Password set. Sign in on any computer with it",true);
+  }catch(e){err.textContent="Couldn’t save the password. Try again.";}
+}
+async function pwSignIn(){
+  const u=(document.getElementById("uIn").value||"").trim(), pw=document.getElementById("pwIn").value, err=document.getElementById("tokErr");
+  if(!u||!pw){err.textContent="Enter your username and password.";return;}
+  err.textContent="Signing in…";
+  try{
+    const r=await fetch("https://api.github.com/users/"+encodeURIComponent(u)+"/gists?per_page=100",{cache:"no-store"});
+    if(!r.ok) throw Object.assign(new Error(),{kind:r.status===404?"user":"net"});
+    const g=(await r.json()).find(x=>x.files&&x.files[LOGIN_FILE]);
+    if(!g) throw Object.assign(new Error(),{kind:"nopw"});
+    const full=await (await fetch("https://api.github.com/gists/"+g.id,{cache:"no-store"})).json();
+    const d=JSON.parse(full.files[LOGIN_FILE].content);
+    let tok;
+    try{
+      const key=await pwKey(pw,unb64(d.salt),d.iter);
+      tok=new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(d.iv)},key,unb64(d.ct)));
+    }catch(e){throw Object.assign(new Error(),{kind:"pw"});}
+    document.getElementById("tokIn").value=tok;
+    await connect();
+  }catch(e){
+    err.textContent=e.kind==="pw"?"Wrong password.":e.kind==="user"?"No GitHub user with that name.":e.kind==="nopw"?"No password set yet. Sign in with your sync key below, then set one.":"Couldn’t reach GitHub. Try again.";
+  }
+}
 function openSync(){
   const box=document.getElementById("syncBox");
   if(GH.tok){
-    box.innerHTML=`<h3 id="syncTitle">Synced across computers</h3>
-      <div class="who">Signed in as ${esc(GH.user||"GitHub user")}</div>
-      <p>Your tasks are saved to a private gist on your GitHub account and load on any computer where you sign in here.</p>
+    box.innerHTML=`<h3 id="syncTitle">Signed in</h3>
+      <div class="who">${esc(GH.user||"GitHub user")}</div>
+      <p>Your tasks are saved to your GitHub account and load on any computer where you sign in.</p>
+      <h3 style="font-size:17px;margin-top:6px">${localStorage.getItem("questlog.haspw")?"Change your password":"Set a password for other computers"}</h3>
+      <p>Then on any other computer you just sign in with your username and this password. No key needed.</p>
+      <input class="field" id="pw1" type="password" placeholder="New password (10+ characters)" aria-label="New password" autocomplete="new-password">
+      <input class="field" id="pw2" type="password" placeholder="Type it again" aria-label="Confirm password" autocomplete="new-password">
+      <div class="merr" id="pwErr"></div>
       <div class="mrow"><button class="ghost cut" data-m="signout">Sign out on this computer</button>
-      <button class="go cut" data-m="close">Done</button></div>`;
+      <button class="ghost cut" data-m="close">Close</button><button class="go cut" data-m="setpw">Save password</button></div>`;
   } else {
-    box.innerHTML=`<h3 id="syncTitle">Sync across computers</h3>
-      <p>Sign in once on each computer with a GitHub sync key. Your tasks are stored privately in your own GitHub account. It’s free.</p>
-      <ol>
+    box.innerHTML=`<h3 id="syncTitle">Sign in to Quest Log</h3>
+      <p>Sign in to load your tasks and keep them synced on every computer.</p>
+      <form id="pwForm" onsubmit="return false">
+      <input class="field" id="uIn" value="${DEFAULT_USER}" placeholder="GitHub username" aria-label="Username" autocomplete="username" spellcheck="false" style="font-family:inherit;font-size:16px">
+      <input class="field" id="pwIn" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password" style="font-family:inherit;font-size:16px">
+      </form>
+      <div class="merr" id="tokErr"></div>
+      <div class="mrow" style="margin-bottom:18px"><button class="ghost cut" data-m="skip">Continue without signing in</button><button class="go cut" data-m="pwsignin">Sign in</button></div>
+      <details><summary style="cursor:pointer;color:var(--muted);font-size:14px">First time, or no password yet? Use a sync key</summary>
+      <ol style="margin-top:10px">
         <li><a href="${TOKEN_URL}" target="_blank" rel="noopener">Open the sync key page on GitHub</a> (everything is pre-filled).</li>
-        <li>Set <b>Expiration</b> to <b>No expiration</b>, scroll down and click <b>Generate token</b>.</li>
-        <li>Copy the key (starts with <b>ghp_</b>) and paste it below. Keep a copy somewhere safe to use on your other computers.</li>
+        <li>Set <b>Expiration</b> to <b>No expiration</b>, then click <b>Generate token</b>.</li>
+        <li>Paste the key (starts with <b>ghp_</b>) below.</li>
       </ol>
       <input class="field" id="tokIn" placeholder="ghp_…" aria-label="GitHub sync key" autocomplete="off" spellcheck="false">
-      <div class="merr" id="tokErr"></div>
-      <div class="mrow"><button class="ghost cut" data-m="close">Cancel</button><button class="go cut" data-m="connect">Sign in</button></div>`;
+      <div class="mrow"><button class="go cut" data-m="connect">Sign in with key</button></div></details>`;
   }
   document.getElementById("syncModal").classList.add("open");
-  const ti=document.getElementById("tokIn");if(ti)ti.focus();
+  const f=document.getElementById("pwIn")||document.getElementById("pw1");if(f)f.focus();
 }
 function closeSync(){document.getElementById("syncModal").classList.remove("open");}
 async function connect(){
@@ -809,16 +871,20 @@ document.getElementById("syncBtn").addEventListener("click",openSync);
 document.getElementById("syncModal").addEventListener("click",e=>{
   if(e.target.id==="syncModal") return closeSync();
   const m=e.target.closest("[data-m]");if(!m) return;
-  ({close:closeSync,connect:connect,signout:signOut})[m.dataset.m]();
+  ({close:closeSync,connect:connect,signout:signOut,setpw:setPassword,pwsignin:pwSignIn,
+    skip:()=>{try{localStorage.setItem("questlog.skipsignin","1");}catch(e){}closeSync();}})[m.dataset.m]();
 });
 document.getElementById("syncModal").addEventListener("keydown",e=>{
   if(e.key==="Escape") closeSync();
   if(e.key==="Enter"&&e.target.id==="tokIn"){e.preventDefault();connect();}
+  if(e.key==="Enter"&&(e.target.id==="pwIn"||e.target.id==="uIn")){e.preventDefault();pwSignIn();}
+  if(e.key==="Enter"&&(e.target.id==="pw1"||e.target.id==="pw2")){e.preventDefault();setPassword();}
 });
 const inClaude=!!(window.claude&&window.claude.use);
 if(!inClaude){
   document.getElementById("syncBtn").hidden=false;
   if(GH.tok){setSync("Connecting to GitHub…");gistPull();}
+  else{let skip=false;try{skip=!!localStorage.getItem("questlog.skipsignin");}catch(e){} if(!skip) openSync();}
   const maybePull=()=>{if(GH.tok&&document.visibilityState==="visible"&&Date.now()-lastPull>15000&&!pushTimer) gistPull();};
   document.addEventListener("visibilitychange",maybePull);
   window.addEventListener("focus",maybePull);
