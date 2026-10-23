@@ -157,7 +157,7 @@ h2 .n{font-size:13px;color:var(--muted);font-weight:500}
 }
 .subs{margin:0 0 8px 13px;padding:2px 0 4px 24px;border-left:2px solid var(--line)}
 .sub{display:flex;align-items:center;gap:10px;padding:4px 0}
-.sub .check{width:20px;height:20px}
+.sub .check{width:22px;height:22px}
 .sub.done .check .fill{opacity:1;transform:scale(1)}
 .sub.done .check .ring{stroke:var(--pc)}
 .stext{flex:1;min-width:0;font-size:15px;word-break:break-word}
@@ -427,15 +427,16 @@ function progBar(t){
   if(!v) return `<button class="subct add" data-act="prog" data-v="10" title="Track progress" aria-label="Track progress on this task">+ %</button>`;
   return `<span class="tprog" role="group" aria-label="Progress ${v}%">${Array.from({length:10},(_,i)=>`<button class="${i<v/10?"on":""}" data-act="prog" data-v="${(i+1)*10}" aria-label="Set progress to ${(i+1)*10}%" title="${(i+1)*10}%"></button>`).join("")}<span class="pct ${v===100?"full":""}">${v}%</span></span>`;
 }
+const subsOpen=t=>(state.openSubs&&t.id in state.openSubs)?!!state.openSubs[t.id]:!t.done;
 function subBtn(t){
-  const s=t.subs||[], open=!!(state.openSubs&&state.openSubs[t.id]);
+  const s=t.subs||[], open=subsOpen(t);
   if(!s.length) return `<button class="subct add" data-act="subs" title="Add sub-tasks" aria-label="Add sub-tasks">+ steps</button>`;
   const d=s.filter(x=>x.done).length;
   return `<button class="subct ${d===s.length?"full":""}" data-act="subs" aria-expanded="${open}" title="${open?"Hide":"Show"} sub-tasks">${open?"▾":"▸"} ${d}/${s.length}</button>`;
 }
 function subsBlock(p,t){
-  if(!(state.openSubs&&state.openSubs[t.id])) return "";
   const s=t.subs||[];
+  if(!subsOpen(t)||(!s.length&&!(state.openSubs&&state.openSubs[t.id]))) return "";
   return `<div class="subs" style="--pc:${p.color}" data-pid="${p.id}" data-tid="${t.id}">
     ${s.map(x=>`<div class="sub ${x.done?"done":""}" data-sid="${x.id}">
       <button class="check" role="checkbox" aria-checked="${x.done}" aria-label="${x.done?"Mark not done":"Mark done"}: ${esc(x.text)}" data-act="subtoggle">${checkSVG}</button>
@@ -631,7 +632,7 @@ document.addEventListener("click",e=>{
     case "pri": if(t){t.pri=!t.pri;save();render();}break;
     case "sun": if(t){const on=t.day===dayKey();t.day=on?null:dayKey();save();render();toast(on?"Removed from today":"Added to today");}break;
     case "addtoday": addToday();break;
-    case "subs": if(t){state.openSubs=state.openSubs||{};state.openSubs[t.id]=!state.openSubs[t.id];
+    case "subs": if(t){state.openSubs=state.openSubs||{};state.openSubs[t.id]=(t.subs||[]).length?!subsOpen(t):!state.openSubs[t.id];
       if(state.openSubs[t.id]) pendingFocus="#sub-"+t.id; save();render();}break;
     case "subadd": if(t) addSub(t);break;
     case "prog": if(t){
