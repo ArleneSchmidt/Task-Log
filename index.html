@@ -352,8 +352,8 @@ function gemSVG(color,progress,size){
     const a=pts[i],b=pts[(i+1)%6];
     const on=i<lit;
     const shade=[0,.18,.32,.12,.26,.06][i];
-    s+=`<polygon points="50,50 ${a[0].toFixed(1)},${a[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}" fill="${on?color:"var(--line)"}" />`;
-    s+=`<polygon points="50,50 ${a[0].toFixed(1)},${a[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}" fill="${on?"#000":"#fff"}" fill-opacity="${on?shade:shade*.6}" />`;
+    s+=`<polygon points="50,50 ${a[0].toFixed(1)},${a[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}" fill="${color}" fill-opacity="${on?1:.32}" />`;
+    s+=`<polygon points="50,50 ${a[0].toFixed(1)},${a[1].toFixed(1)} ${b[0].toFixed(1)},${b[1].toFixed(1)}" fill="#000" fill-opacity="${on?shade:shade*.5}" />`;
   }
   return s+"</svg>";
 }
