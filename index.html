@@ -39,7 +39,7 @@ body{
 }
 #facets{position:fixed;inset:0;z-index:0;pointer-events:none}
 #facets svg{width:100%;height:100%}
-.app{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:20px 20px 60px}
+.app{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:20px 20px 60px}
 .cut{clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 input{font:inherit;color:inherit}
@@ -50,7 +50,7 @@ button:focus-visible,input:focus-visible{outline:none;box-shadow:inset 0 0 0 2px
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:22px;letter-spacing:.01em}
 .brand svg{width:34px;height:34px}
 .xp{margin-left:auto;display:flex;align-items:center;gap:12px;background:var(--surface);padding:8px 14px}
-.lvl{font-weight:700;font-size:15px;background:var(--gold);color:var(--gold-ink);padding:3px 10px;
+.lvl{white-space:nowrap;font-weight:700;font-size:15px;background:var(--gold);color:var(--gold-ink);padding:3px 10px;
   clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
 .xpbar{display:flex;gap:3px}
 .xpbar i{width:12px;height:14px;background:var(--line);clip-path:polygon(30% 0,100% 0,70% 100%,0 100%);transition:background .3s}
@@ -119,11 +119,15 @@ h2 .n{font-size:13px;color:var(--muted);font-weight:500}
 .taskadd .field{flex:1;font-size:16px;padding:12px 14px}
 .task{display:flex;align-items:center;gap:12px;padding:9px 10px;margin:0 -10px;position:relative}
 .task:hover{background:var(--surface-2)}
-.check{width:26px;height:26px;flex:none;position:relative}
+.check{width:26px;height:26px;flex:none;position:relative;padding:0}
 .check svg{width:100%;height:100%;display:block}
 .check .ring{fill:none;stroke:var(--muted);stroke-width:2}
 .check .fill{fill:var(--pc);opacity:0;transform-origin:center;transform:scale(.4);transition:all .2s}
+.check .tick{fill:none;stroke:#fff;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .2s}
 .check:hover .ring{stroke:var(--pc)}
+.check:hover .fill{opacity:.2;transform:scale(1)}
+.task.done .check .tick,.sub.done .check .tick{opacity:1}
+.task.done .check .fill,.sub.done .check .fill{opacity:1!important}
 .task.done .check .fill{opacity:1;transform:scale(1)}
 .task.done .check .ring{stroke:var(--pc)}
 .ttext{flex:1;min-width:0;word-break:break-word;cursor:text}
@@ -156,8 +160,10 @@ h2 .n{font-size:13px;color:var(--muted);font-weight:500}
   .tprog button{width:auto;flex:1;max-width:24px;height:18px}
 }
 .subs{margin:0 0 8px 13px;padding:2px 0 4px 24px;border-left:2px solid var(--line)}
-.sub{display:flex;align-items:center;gap:10px;padding:4px 0}
-.sub .check{width:22px;height:22px}
+.sub{display:flex;align-items:center;gap:10px;padding:5px 8px;margin-left:-8px}
+.sub:hover{background:var(--surface-2)}
+.stext{cursor:pointer}
+.sub .check{width:22px;height:22px;padding:0}
 .sub.done .check .fill{opacity:1;transform:scale(1)}
 .sub.done .check .ring{stroke:var(--pc)}
 .stext{flex:1;min-width:0;font-size:15px;word-break:break-word}
@@ -181,6 +187,31 @@ select.field{appearance:none;-webkit-appearance:none;cursor:pointer;padding-righ
 @media (hover:none){.task .x{opacity:1}}
 .editin{flex:1;background:var(--surface);border:0;padding:4px 8px;box-shadow:inset 0 0 0 2px var(--focus)}
 .donecard{padding:14px 22px;opacity:.92}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,330px);gap:16px;align-items:start}
+.colmain,.colside{display:flex;flex-direction:column;gap:16px;min-width:0}
+.colside{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}
+@media (max-width:1100px){.cols{grid-template-columns:1fr}.colside{position:static}}
+.ptop{padding:16px 22px}
+.ptop .phead{flex-wrap:nowrap}
+.ptop .phead .gem{width:44px;height:44px}
+.ptop .titleinput{font-size:26px;min-width:0}
+.pstat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;flex:none}
+.pstat b{font-size:22px}
+.pstat span{font-size:13px;color:var(--muted);white-space:nowrap}
+.menubtn{flex:none;font-size:20px;background:var(--surface-2)}
+.ptop .progress{margin-top:12px;height:10px}
+.pmenu{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:2px dashed var(--line);font-size:14px;color:var(--muted)}
+.pmenu .danger{margin-left:auto}
+.folder2{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface-2);margin-bottom:6px}
+.fmeta{flex:1;min-width:0;display:flex;flex-direction:column}
+.fmeta .fl{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmeta code{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.fform{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.fform .field{width:100%}
+.addf{width:100%;padding:9px;border:2px dashed var(--line);color:var(--muted);font-weight:600;margin-top:4px}
+.addf:hover{color:var(--ink);border-color:var(--muted)}
+.hint{font-size:12px;color:var(--muted);margin:10px 0 0}
+@media (max-width:760px){.ptop .titleinput{font-size:20px}.pstat b{font-size:18px}.ptop .phead{gap:10px}}
 .donehead{display:flex;align-items:center;gap:10px;width:100%;text-align:left;color:var(--ink);font-size:16px;font-weight:600;padding:4px 0}
 .donehead .chev{color:var(--muted);width:14px}
 .donehead .dn{font-size:13px;padding:1px 8px;background:var(--surface-2);color:var(--muted)}
@@ -376,7 +407,7 @@ function drawFacets(){
   }
   document.getElementById("facets").innerHTML=s+"</svg>";
 }
-const checkSVG='<svg viewBox="0 0 26 26"><polygon class="ring" points="13,2 24,13 13,24 2,13"/><polygon class="fill" points="13,6 20,13 13,20 6,13"/></svg>';
+const checkSVG='<svg viewBox="0 0 26 26"><polygon class="fill" points="7,2 19,2 24,7 24,19 19,24 7,24 2,19 2,7"/><polygon class="ring" points="7,2 19,2 24,7 24,19 19,24 7,24 2,19 2,7"/><path class="tick" d="M7.5 13.5l3.8 3.8 7.2-7.8"/></svg>';
 
 /* ---------- rendering ---------- */
 function render(){
@@ -444,7 +475,7 @@ function subsBlock(p,t){
   return `<div class="subs" style="--pc:${p.color}" data-pid="${p.id}" data-tid="${t.id}">
     ${s.map(x=>`<div class="sub ${x.done?"done":""}" data-sid="${x.id}">
       <button class="check" role="checkbox" aria-checked="${x.done}" aria-label="${x.done?"Mark not done":"Mark done"}: ${esc(x.text)}" data-act="subtoggle">${checkSVG}</button>
-      <span class="stext">${esc(x.text)}</span>
+      <span class="stext" data-act="subtoggle">${esc(x.text)}</span>
       <button class="x" data-act="subdel" aria-label="Delete sub-task" title="Delete">×</button></div>`).join("")}
     <div class="subadd"><input class="field" id="sub-${t.id}" placeholder="Add a step and press Enter" aria-label="New sub-task">
       <button class="chip cut" data-act="subadd">Add</button></div>
@@ -530,48 +561,55 @@ function renderAll(){
   m.innerHTML=h;
 }
 
+let pMenuOpen=false, folderFormOpen=false;
 function renderProject(p){
   const m=document.getElementById("main");
-  const tot=p.tasks.length, done=tot-openCount(p), segs=Math.max(tot,1);
+  const tot=p.tasks.length, done=tot-openCount(p), segs=Math.min(Math.max(tot,1),30), frac=projFrac(p);
   const open=sortOpen(p.tasks.filter(t=>!t.done));
   const closed=p.tasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
   const showDone=!!state.showDone[p.id];
-  let h=`<section class="panel cut" style="--pc:${p.color}">
-    <div class="phead">${gemSVG(p.color,projFrac(p))}
+  const showForm=folderFormOpen||!p.folders.length;
+  m.innerHTML=`<section class="panel cut ptop" style="--pc:${p.color}">
+    <div class="phead">${gemSVG(p.color,frac)}
       <input class="titleinput" id="ptitle" value="${esc(p.name)}" aria-label="Project name" data-act="rename">
+      <div class="pstat"><b>${Math.round(frac*100)}%</b><span>${tot?`${done} of ${tot} done`:"No tasks yet"}</span></div>
+      <button class="iconbtn cut menubtn" data-act="pmenu" aria-expanded="${pMenuOpen}" aria-label="Project settings" title="Project settings">⋯</button>
+    </div>
+    <div class="progress">${Array.from({length:segs},(_,i)=>`<i class="${tot&&i<Math.round(frac*segs)?"on":""}"></i>`).join("")}</div>
+    ${pMenuOpen?`<div class="pmenu"><span>Colour</span>
       <div class="swatches" role="group" aria-label="Project colour">${COLORS.map(c=>`<button class="sw ${c===p.color?"on":""}" style="background:${c}" data-act="color" data-c="${c}" aria-label="Colour ${c}"></button>`).join("")}</div>
-    </div>
-    <div class="progress">${Array.from({length:Math.min(segs,30)},(_,i)=>`<i class="${tot&&i<Math.round(projFrac(p)*Math.min(segs,30))?"on":""}"></i>`).join("")}</div>
-    <div class="pmeta"><span>${tot?`${done} of ${tot} done · ${Math.round(projFrac(p)*100)}% overall`:"No tasks yet"}${tot&&done===tot?" · quest complete":""}</span>
-      <button class="danger" data-act="delproj">Delete project</button></div>
+      <button class="danger" data-act="delproj">Delete project</button></div>`:""}
   </section>
-
-  <section class="panel cut" style="--pc:${p.color}">
-    <h2>Tasks <span class="n">${open.length} open</span></h2>
-    <div class="taskadd"><input class="field" id="newtask" placeholder="Add a task and press Enter" aria-label="New task">
-      <button class="go cut" data-act="addtask">Add</button></div>
-    ${open.length?open.map(t=>taskRow(p,t,false)).join(""):`<div class="empty">${tot?"Nothing left. Nice work.":"Add the first task above."}</div>`}
-  </section>
-  ${closed.length?`<section class="panel cut donecard" style="--pc:${p.color}">
-    <button class="donehead" data-act="togdone" aria-expanded="${showDone}"><span class="chev">${showDone?"▾":"▸"}</span>
-      <span class="dt">Completed</span><span class="dn">${closed.length}</span></button>
-    ${showDone?`<div class="donelist">${closed.map(t=>taskRow(p,t,false)).join("")}</div><button class="danger" data-act="cleardone">Clear completed tasks</button>`:""}
-  </section>`:""}
-
-  <section class="panel cut" style="--pc:${p.color}">
-    <h2>Folders <span class="n">tap Copy, then paste into Explorer or Finder</span></h2>
-    ${p.folders.length?p.folders.map(f=>`<div class="folder cut" data-fid="${f.id}">
-      <span class="fl">${esc(f.label||"Folder")}</span><code>${esc(f.path)}</code>
-      <button class="chip cut" data-act="copy">Copy</button>
-      <button class="x" data-act="delfolder" aria-label="Remove folder">×</button></div>`).join("")
-      :`<div class="empty">No folders saved yet.</div>`}
-    <div class="addrow">
-      <input class="field short" id="flabel" placeholder="Name (e.g. Drawings)" aria-label="Folder name">
-      <input class="field" id="fpath" placeholder="Paste a folder path" aria-label="Folder path">
-      <button class="go cut" data-act="addfolder">Save</button>
+  <div class="cols">
+    <div class="colmain">
+      <section class="panel cut" style="--pc:${p.color}">
+        <h2>To do <span class="n">${open.length}</span></h2>
+        <div class="taskadd"><input class="field" id="newtask" placeholder="Add a task and press Enter" aria-label="New task">
+          <button class="go cut" data-act="addtask">Add</button></div>
+        ${open.length?open.map(t=>taskRow(p,t,false)).join(""):`<div class="empty">${tot?"Nothing left. Nice work.":"Add the first task above."}</div>`}
+      </section>
+      ${closed.length?`<section class="panel cut donecard" style="--pc:${p.color}">
+        <button class="donehead" data-act="togdone" aria-expanded="${showDone}"><span class="chev">${showDone?"▾":"▸"}</span>
+          <span class="dt">Completed</span><span class="dn">${closed.length}</span></button>
+        ${showDone?`<div class="donelist">${closed.map(t=>taskRow(p,t,false)).join("")}</div><button class="danger" data-act="cleardone">Clear completed tasks</button>`:""}
+      </section>`:""}
     </div>
-  </section>`;
-  m.innerHTML=h;
+    <aside class="colside">
+      <section class="panel cut" style="--pc:${p.color}">
+        <h2>Folders <span class="n">${p.folders.length||""}</span></h2>
+        ${p.folders.map(f=>`<div class="folder2 cut" data-fid="${f.id}">
+          <div class="fmeta"><span class="fl">${esc(f.label||"Folder")}</span><code title="${esc(f.path)}"><bdo dir="ltr">${esc(f.path)}</bdo></code></div>
+          <button class="chip cut" data-act="copy">Copy</button>
+          <button class="x" data-act="delfolder" aria-label="Remove folder">×</button></div>`).join("")}
+        ${showForm?`<div class="fform">
+          <input class="field" id="flabel" placeholder="Name (e.g. Drawings)" aria-label="Folder name">
+          <input class="field" id="fpath" placeholder="Paste a folder path" aria-label="Folder path">
+          <div class="mrow">${p.folders.length?`<button class="ghost cut" data-act="fform">Cancel</button>`:""}<button class="go cut" data-act="addfolder">Save folder</button></div></div>`
+          :`<button class="addf cut" data-act="fform">+ Add folder</button>`}
+        <p class="hint">Copy a path, then paste it into Explorer or Finder.</p>
+      </section>
+    </aside>
+  </div>`;
 }
 
 /* ---------- actions ---------- */
@@ -607,7 +645,7 @@ function addTask(p){
 function addFolder(p){
   const l=document.getElementById("flabel"),pa=document.getElementById("fpath");
   const path=pa.value.trim().replace(/^["']|["']$/g,"");if(!path){pa.focus();return;}
-  p.folders.push({id:uid(),label:l.value.trim(),path});save();pendingFocus="#flabel";render();toast("Folder saved");
+  p.folders.push({id:uid(),label:l.value.trim(),path});folderFormOpen=false;save();pendingFocus="#flabel";render();toast("Folder saved");
 }
 async function copyText(txt,codeEl){
   let ok=false;
@@ -635,7 +673,9 @@ document.addEventListener("click",e=>{
   const act=el.dataset.act, row=el.closest(".task,.subs"), cur=proj(state.view);
   const tp=row?proj(row.dataset.pid):null, t=tp?tp.tasks.find(x=>x.id===row.dataset.tid):null;
   switch(act){
-    case "view": state.view=el.dataset.id;editing=null;save();render();window.scrollTo({top:0});break;
+    case "pmenu": pMenuOpen=!pMenuOpen;render();break;
+    case "fform": folderFormOpen=!folderFormOpen;if(folderFormOpen)pendingFocus="#flabel";render();break;
+    case "view": pMenuOpen=false;folderFormOpen=false;state.view=el.dataset.id;editing=null;save();render();window.scrollTo({top:0});break;
     case "newproj": newProject();break;
     case "addtask": addTask(cur);break;
     case "toggle": if(t) toggleTask(tp,t,el);break;
