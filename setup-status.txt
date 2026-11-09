@@ -1,6 +1,0 @@
-Old project deleted
-Created project qccqpgyjkingkibnqcvq
-Status: ACTIVE_HEALTHY
-Database ready
-Auth configured
-Config written
