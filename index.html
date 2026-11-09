@@ -357,7 +357,11 @@ button.meta:hover{color:var(--ink)}
 .pname{font-weight:700;font-size:18px;word-break:break-word}
 .pstat{font-size:14px;color:var(--muted)}
 .pstat b{color:var(--ink);font-size:18px;margin-right:2px}
-.pfoot{border-top:1px solid var(--line);padding-top:10px;font-size:13px}
+.pfoot{border-top:1px solid var(--line);padding-top:10px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dotsep{color:var(--muted)}
+.isteps{margin:0;padding-left:20px;font-size:14px;color:var(--muted);line-height:1.5}
+.isteps b{color:var(--ink)}
+.isteps a{color:var(--focus)}
 .ptitle{font-weight:700;font-size:16px}
 .profmenu .field{width:100%;margin-bottom:10px}
 .profmenu .merr{min-height:18px;font-size:13px;color:var(--red)}
@@ -1744,7 +1748,14 @@ function renderProf(){
   if(!profOpen||!acct){if(el)el.remove();renderUser();return;}
   if(!el){el=document.createElement("div");el.id="profMenu";el.className="profmenu cut";el.setAttribute("role","dialog");el.setAttribute("aria-label","Account");document.body.appendChild(el);}
   const n=acct.username, pc=active().length;
-  el.innerHTML=profView==="pw"?`<div class="ptitle">Change password</div>
+  el.innerHTML=profView==="import"?`<div class="ptitle">Import old tasks</div>
+      <ol class="isteps"><li>Open <a href="https://gist.github.com/mine" target="_blank" rel="noopener">your GitHub gists</a> (sign in to GitHub if asked).</li>
+        <li>Click <b>Quest Log data</b>.</li><li>Copy the page address and paste it here.</li></ol>
+      <input class="field" id="impUrl" placeholder="https://gist.github.com/…" aria-label="Old tasks link" autocomplete="off" spellcheck="false">
+      <div class="merr" id="pErr" role="alert"></div>
+      <div class="mrow"><button class="ghost cut" data-p="back">Cancel</button><button class="go cut" data-p="doimport">Import</button></div>
+      <div class="pfoot"><button class="linkish muted" data-p="impfile">Or choose a saved file</button><input type="file" id="impFile" accept=".json,application/json" hidden></div>`
+    :profView==="pw"?`<div class="ptitle">Change password</div>
       ${authField("nPw","New password","password",`autocomplete="new-password"`)}
       ${authField("nPw2","Confirm new password","password",`autocomplete="new-password"`)}
       <div class="merr" id="pErr" role="alert"></div>
@@ -1752,7 +1763,7 @@ function renderProf(){
     :`<div class="phero"><span class="av big" aria-hidden="true">${esc(n.charAt(0).toUpperCase())}</span><div class="pname">${esc(n)}</div></div>
       <div class="pstat"><b>${pc}</b> ${pc===1?"project":"projects"}</div>
       <button class="ghost cut wide" data-p="pw">Change password</button>
-      <div class="pfoot"><button class="linkish muted" data-p="signout">Sign out</button></div>`;
+      <div class="pfoot"><button class="linkish muted" data-p="signout">Sign out</button><span class="dotsep">·</span><button class="linkish muted" data-p="import">Import old tasks</button></div>`;
   const r=$("syncBtn").getBoundingClientRect();
   el.style.top=(r.bottom+8)+"px";el.style.right=Math.max(8,innerWidth-r.right)+"px";
   renderUser();
@@ -1782,6 +1793,9 @@ document.addEventListener("click",e=>{
   if(p&&e.target.closest("#profMenu")){
     const a=p.dataset.p;
     if(a==="pw"){profView="pw";renderProf();}
+    else if(a==="import"){profView="import";renderProf();setTimeout(()=>{const i=$("impUrl");if(i)i.focus();},20);}
+    else if(a==="doimport") importOld();
+    else if(a==="impfile") $("impFile").click();
     else if(a==="back"){profView="main";renderProf();}
     else if(a==="savepw") savePw();
     else if(a==="signout") doSignOut();
@@ -1795,6 +1809,42 @@ document.addEventListener("keydown",e=>{
   else if(e.key==="Enter"&&e.target.closest&&e.target.closest("#profMenu")&&e.target.tagName==="INPUT"){e.preventDefault();if(e.target.id==="nPw")$("nPw2").focus();else savePw();}
 },true);
 addEventListener("resize",()=>{if(profOpen)renderProf();});
+document.addEventListener("change",e=>{
+  if(e.target.id!=="impFile"||!e.target.files[0]) return;
+  const r=new FileReader();r.onload=()=>{try{finishImport(JSON.parse(String(r.result)));}catch(err){$("pErr").textContent="That file isn’t a Quest Log backup.";}};r.readAsText(e.target.files[0]);
+});
+/* bring tasks across from the old GitHub-based storage, merging with what's already here */
+async function importOld(){
+  const v=($("impUrl").value||"").trim(),err=$("pErr");
+  if(v.startsWith("{")){try{return finishImport(JSON.parse(v));}catch(e){return err.textContent="That doesn’t look like Quest Log data.";}}
+  const m=v.match(/([0-9a-f]{20,40})(?:[#/?].*)?$/i)||v.match(/gist\.github(?:usercontent)?\.com\/[^/]+\/([0-9a-f]{20,40})/i);
+  if(!m) return err.textContent="Paste the address of the Quest Log data page.";
+  err.textContent="Importing…";
+  try{
+    const r=await fetch("https://api.github.com/gists/"+m[1],{cache:"no-store"});
+    if(!r.ok) return err.textContent=r.status===404?"Couldn’t find that page. Check you copied the whole address.":"GitHub didn’t respond. Try again in a minute.";
+    const g=await r.json(),f=g.files&&(g.files["questlog.json"]||Object.values(g.files).find(x=>/questlog/i.test(x.filename)&&!/login/i.test(x.filename)));
+    if(!f) return err.textContent="That page doesn’t contain Quest Log tasks. Pick “Quest Log data”, not “sign-in”.";
+    const txt=f.truncated?await (await fetch(f.raw_url)).text():f.content;
+    finishImport(JSON.parse(txt));
+  }catch(e){err.textContent="Couldn’t import. Check your connection and try again.";}
+}
+function finishImport(old){
+  if(!old||!Array.isArray(old.projects)){const e=$("pErr");if(e)e.textContent="That doesn’t look like Quest Log data.";return;}
+  old=normalize(Object.assign(blank(),old));
+  let addP=0,addT=0;
+  old.projects.forEach(op=>{
+    const cur=state.projects.find(p=>p.id===op.id);
+    if(!cur){state.projects.push(op);addP++;addT+=op.tasks.length;return;}
+    op.tasks.forEach(t=>{if(!cur.tasks.some(x=>x.id===t.id)){cur.tasks.push(t);addT++;}});
+    op.folders.forEach(f=>{if(!cur.folders.some(x=>x.id===f.id))cur.folders.push(f);});
+    if(op.notes&&!cur.notes) cur.notes=op.notes;
+  });
+  state.xp=Math.max(state.xp||0,old.xp||0);
+  Object.entries(old.log||{}).forEach(([k,v])=>{state.log[k]=Math.max(state.log[k]||0,v);});
+  save();toggleProf(false);render();
+  toast(addP||addT?`Imported ${addP} project${addP===1?"":"s"} and ${addT} task${addT===1?"":"s"}`:"Those tasks are already here",true);
+}
 
 async function initAuth(){
   renderUser();
