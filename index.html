@@ -153,6 +153,7 @@ button.schip:hover{background:var(--surface-2)}
 
 /* project header */
 .ptop{position:relative;padding:16px 20px}
+.ptopwrap{position:relative}
 .phead{display:flex;align-items:center;gap:12px}
 .phead .gem{width:36px;height:36px}
 .titleinput{flex:1;min-width:0;font-size:24px;font-weight:700;border:0;background:transparent;padding:2px 6px;margin-left:-6px}
@@ -162,11 +163,13 @@ button.schip:hover{background:var(--surface-2)}
 .menubtn{width:34px;height:34px;display:grid;place-items:center;background:var(--surface-2);font-size:18px;flex:none;--cut:6px}
 .menubtn:hover{background:var(--line)}
 .ptop .fchips{margin-top:12px}
-.pop{position:absolute;right:16px;top:58px;z-index:20;background:var(--surface);box-shadow:var(--shadow);padding:10px;min-width:230px;display:flex;flex-direction:column;gap:2px;border:1px solid var(--line)}
+.pop{position:absolute;right:16px;top:58px;z-index:30;background:var(--surface);box-shadow:var(--shadow);padding:10px;min-width:230px;display:flex;flex-direction:column;gap:2px;border:1px solid var(--line)}
 .poplabel{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:4px 6px}
-.swatches{display:flex;gap:7px;padding:4px 6px 10px;border-bottom:1px solid var(--line);margin-bottom:4px}
-.sw{width:20px;height:20px;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
-.sw.on{transform:scale(1.3)}
+.swatches{display:grid;grid-template-columns:repeat(6,28px);gap:8px;padding:6px 6px 12px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.sw{width:28px;height:28px;background:var(--c);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700;transition:transform .12s,filter .12s}
+.sw:hover{transform:scale(1.12);filter:brightness(1.08)}
+.sw.on::after{content:"✓";text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.sw:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .mi{text-align:left;padding:8px 8px;font-size:14px;font-weight:600}
 .mi:hover{background:var(--surface-2)}
 .mi.red{color:var(--red)}
@@ -346,6 +349,26 @@ button.meta:hover{color:var(--ink)}
 .mrow{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .merr{color:var(--red);font-size:14px;min-height:20px;margin-bottom:8px}
 .who{font-size:18px;font-weight:600;margin-bottom:14px}
+.mbox .field.plain{font-family:inherit;font-size:16px}
+.tabs{display:flex;gap:4px;margin:-4px 0 18px;background:var(--surface-2);padding:4px}
+.tab{flex:1;padding:8px;font-weight:600;color:var(--muted)}
+.tab.on{background:var(--surface);color:var(--ink)}
+.steps{padding-left:22px}
+.steps li{margin-bottom:14px;color:var(--muted);line-height:1.45}
+.steps li b{color:var(--ink)}
+.steps .field{margin:8px 0 0}
+.forgot{border-top:1px solid var(--line);padding:10px 0}
+.forgot summary{cursor:pointer;color:var(--muted);font-size:14px;font-weight:600}
+.forgot summary:hover{color:var(--ink)}
+.forgot p,.forgot ol{font-size:14px;margin:10px 0}
+.forgot .mrow{margin-bottom:4px}
+.msmall{font-size:14px;color:var(--muted);margin:12px 0 0!important}
+.linkish{color:var(--focus);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.msect{border-top:1px solid var(--line);padding:14px 0 6px}
+.msect h4{margin:0 0 8px;font-size:15px}
+.mnote{background:color-mix(in srgb,var(--gold) 18%,var(--surface));padding:10px 12px;font-size:14px;margin-bottom:12px}
+.invite{display:flex;gap:8px;align-items:center}
+.invite code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--surface-2);padding:9px 10px;font-size:13px}
 
 /* week calendar */
 .calbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -417,7 +440,7 @@ button.meta:hover{color:var(--ink)}
 .qadd .field{width:100%}
 .qadd .row{display:flex;gap:8px;justify-content:flex-end}
 .mswatch{display:flex;gap:8px;margin:4px 0 14px}
-.mswatch .sw{width:22px;height:22px}
+.mswatch .sw{width:28px;height:28px}
 .mfile{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .mstat{font-size:13px;color:var(--muted);margin-bottom:12px}
 @media (max-width:1000px){
@@ -489,13 +512,17 @@ button.meta:hover{color:var(--ink)}
 </div>
 <script>
 (function(){
-const COLORS=["#2fb894","#4f86e8","#ee6a5f","#9a6ee8","#f08c3a","#27a9c9","#d4508f","#7a9b2e"];
+const PALETTE=[["#2a9d8f","Teal"],["#3aa0c8","Lagoon"],["#4a74e0","Cobalt"],["#7467de","Iris"],["#a06ad3","Orchid"],["#d6608c","Rose"],
+  ["#e0674f","Coral"],["#e5843a","Tangerine"],["#d9a02c","Amber"],["#74a04a","Moss"],["#5e9c80","Sage"],["#6c809b","Slate"]];
+const COLORS=PALETTE.map(x=>x[0]);
+const colorName=c=>(PALETTE.find(x=>x[0]===c)||[c,"Colour"])[1];
+const OLD_COLORS={"#2fb894":"#2a9d8f","#4f86e8":"#4a74e0","#ee6a5f":"#e0674f","#9a6ee8":"#a06ad3","#f08c3a":"#e5843a","#27a9c9":"#3aa0c8","#d4508f":"#d6608c","#7a9b2e":"#74a04a"};
 const KEY="questlog.v1", UIKEY="questlog.ui";
 const XP_PER=10, XP_LVL=100;
 const blank=()=>({projects:[],xp:0,log:{},updatedAt:0});
 function normalize(s){
   s.projects=Array.isArray(s.projects)?s.projects:[];
-  s.projects.forEach(p=>{p.folders=p.folders||[];p.tasks=p.tasks||[];if(!p.color)p.color=COLORS[0];});
+  s.projects.forEach(p=>{p.folders=p.folders||[];p.tasks=p.tasks||[];if(!p.color)p.color=COLORS[0];if(OLD_COLORS[p.color])p.color=OLD_COLORS[p.color];});
   s.log=s.log||{};s.xp=s.xp||0;
   return s;
 }
@@ -775,18 +802,17 @@ function projectHTML(p){
   const openT=p.tasks.filter(todo), waitT=p.tasks.filter(t=>!t.done&&t.wait), doneT=p.tasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
   const wrap=a=>a.map(t=>({p,t}));
   const pop=menuOpen?`<div class="pop cut" role="menu"><div class="poplabel">Colour</div>
-      <div class="swatches">${COLORS.map(c=>`<button class="sw ${c===p.color?"on":""}" style="background:${c}" data-act="color" data-c="${c}" aria-label="Colour ${c}"></button>`).join("")}</div>
+      <div class="swatches">${COLORS.map(c=>`<button class="sw ${c===p.color?"on":""}" style="--c:${c}" data-act="color" data-c="${c}" title="${colorName(c)}" aria-label="${colorName(c)}" aria-pressed="${c===p.color}"></button>`).join("")}</div>
       <button class="mi" data-act="fform">Add a folder</button>
       <button class="mi" data-act="archive">Archive project</button>
       <button class="mi red" data-act="delproj" data-id="${p.id}">Delete project</button></div>`:"";
-  return `<section class="panel cut ptop" style="--pc:${p.color}">
+  return `<div class="ptopwrap">${pop}<section class="panel cut ptop" style="--pc:${p.color}">
     <div class="phead">${gemSVG(p.color,f)}<input class="titleinput" id="ptitle" value="${esc(p.name)}" aria-label="Project name">
       <div class="pprog" title="${p.tasks.filter(t=>t.done).length} of ${p.tasks.length} tasks done"><span class="bar"><i style="width:${f*100}%"></i></span>${Math.round(f*100)}%</div>
       <button class="menubtn cut" data-act="menu" aria-label="Project options" aria-expanded="${menuOpen}">⋯</button></div>
-    ${pop}
     <div class="fchips">${chipsHTML(p,folderForm,0)}${folderForm?"":`<button class="fadd" data-act="fform">+ Folder</button>`}</div>
     ${folderForm?`<div class="fform"><input class="field" id="flabel" placeholder="Name, e.g. Drawings" aria-label="Folder name"><input class="field path" id="fpath" placeholder="Paste the folder path" aria-label="Folder path"><button class="go cut" data-act="addfolder">Save</button><button class="ghost cut" data-act="fform">Done</button></div>`:""}
-  </section>
+  </section></div>
   <section class="panel cut" style="--pc:${p.color}">
     <div class="addbar"><input class="field" id="newtask" placeholder="Add a task" aria-label="New task"><button class="go cut" data-act="addtask">Add</button></div>
     ${openT.length?list(wrap(openT),{ctx:"project",sort:true,pid:p.id}):`<div class="empty">${p.tasks.length?(waitT.length?"Nothing to do right now. The rest is waiting on others.":"All done. Nice work."):"No tasks yet. Add your first one above."}</div>`}
@@ -1141,7 +1167,7 @@ document.addEventListener("pointercancel",()=>endDrag(false));
 const WK={start:6,end:22,ph:48};
 let calScroll=null, cd=null, qadd=null;
 const calSVG='<svg class="gem" viewBox="0 0 100 100" aria-hidden="true"><polygon points="10,22 90,22 90,84 80,94 10,94" fill="#4f86e8" fill-opacity=".85"/><polygon points="10,22 90,22 90,40 10,40" fill="#000" fill-opacity=".28"/><rect x="26" y="8" width="10" height="22" fill="#4f86e8"/><rect x="64" y="8" width="10" height="22" fill="#4f86e8"/><polygon points="26,52 40,52 40,64 26,64" fill="#fff" fill-opacity=".85"/><polygon points="46,52 60,52 60,64 46,64" fill="#fff" fill-opacity=".5"/><polygon points="66,52 80,52 80,64 66,64" fill="#fff" fill-opacity=".5"/><polygon points="26,70 40,70 40,82 26,82" fill="#fff" fill-opacity=".5"/></svg>';
-const meetColor=()=>state.meetColor||"#6b8fb8";
+const meetColor=()=>({"#6b8fb8":"#7b93b4","#8a8f98":"#8c93a0","#5aa58a":"#6ea38e","#b07cc6":"#a48cc4","#c98a4b":"#c3946b","#4f86e8":"#6a9bd1"})[state.meetColor]||state.meetColor||"#7b93b4";
 function weekStart(iso){const d=iso?parseISO(iso):new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d;}
 function calDays(){const s=weekStart(ui.calWeek);return Array.from({length:ui.calWeekend?7:5},(_,i)=>{const d=new Date(s);d.setDate(d.getDate()+i);return d;});}
 const slotDay=t=>t.slot?t.slot.s.slice(0,10):null;
@@ -1480,7 +1506,7 @@ function readICSFile(file){
   if(!/\.ics$/i.test(file.name)&&file.type!=="text/calendar"){toast("That isn’t a calendar (.ics) file");return;}
   const r=new FileReader();r.onload=()=>{try{importICS(String(r.result));}catch(err){toast("Couldn’t read that calendar file");}};r.readAsText(file);
 }
-const MEET_COLORS=["#6b8fb8","#8a8f98","#5aa58a","#b07cc6","#c98a4b","#4f86e8"];
+const MEET_COLORS=[["#7b93b4","Steel"],["#8c93a0","Graphite"],["#6ea38e","Sage"],["#a48cc4","Lavender"],["#c3946b","Clay"],["#6a9bd1","Sky"]];
 function openMeet(){
   const n=(state.meetings||[]).length,mc=meetColor();
   let box=$("meetModal");
@@ -1504,7 +1530,7 @@ function openMeet(){
       <li>Choose the file below, or drop it onto the calendar. Do this again whenever you want to refresh.</li></ol>
     <div class="mfile"><button class="go cut" data-mm="pick">${n?"Update from a file":"Choose .ics file"}</button><input type="file" id="icsIn" accept=".ics,text/calendar" hidden></div>
     <div class="pl">Meeting colour</div>
-    <div class="mswatch">${MEET_COLORS.map(c=>`<button class="sw ${c===mc?"on":""}" style="background:${c}" data-mm="color" data-c="${c}" aria-label="Colour ${c}"></button>`).join("")}</div>
+    <div class="mswatch">${MEET_COLORS.map(([c,n])=>`<button class="sw ${c===mc?"on":""}" style="--c:${c}" data-mm="color" data-c="${c}" title="${n}" aria-label="${n}" aria-pressed="${c===mc}"></button>`).join("")}</div>
     <div class="mrow">${n?`<button class="ghost cut" data-mm="clear">Remove meetings</button>`:""}<button class="ghost cut" data-mm="close">Close</button></div>`;
   box.classList.add("open");
 }
@@ -1596,39 +1622,71 @@ async function gistPull(){
   pulling=false;
 }
 const TOKEN_URL="https://github.com/settings/tokens/new?scopes=gist&description=Quest%20Log%20sync";
-const DEFAULT_USER="ArleneSchmidt", LOGIN_FILE="questlog-login.json", ITER=600000;
+const LOGIN_FILE="questlog-login.json", ITER=600000;
+const APP_URL=location.origin+location.pathname;
+let acctTab="signin";
 const b64=u=>{let t="";u.forEach(x=>t+=String.fromCharCode(x));return btoa(t);};
 const unb64=x=>Uint8Array.from(atob(x),c=>c.charCodeAt(0));
+const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+const lsSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}};
 async function pwKey(pw,salt,iter){
   const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveKey"]);
   return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
 }
+async function savePassword(pw){
+  const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await pwKey(pw,salt,ITER);
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(GH.tok)));
+  const content=JSON.stringify({v:1,iter:ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)});
+  let existing=null;
+  for(let page=1;page<=10&&!existing;page++){
+    const list=await gh("/gists?per_page=100&page="+page);
+    existing=list.find(x=>x.files&&x.files[LOGIN_FILE]);
+    if(list.length<100) break;
+  }
+  if(existing) await gh("/gists/"+existing.id,{method:"PATCH",body:JSON.stringify({files:{[LOGIN_FILE]:{content}}})});
+  else await gh("/gists",{method:"POST",body:JSON.stringify({description:"Quest Log sign-in (encrypted, keep this)",public:true,files:{[LOGIN_FILE]:{content}}})});
+  lsSet("questlog.haspw","1");
+}
+function pwCheck(p1,p2,err){
+  if(p1.length<4){err.textContent="Use at least 4 characters.";return false;}
+  if(p1!==p2){err.textContent="The passwords don’t match.";return false;}
+  return true;
+}
 async function setPassword(){
-  const p1=document.getElementById("pw1").value, p2=document.getElementById("pw2").value, err=document.getElementById("pwErr");
-  if(p1.length<4){err.textContent="Use at least 4 characters.";return;}
-  if(p1!==p2){err.textContent="The passwords don’t match.";return;}
+  const p1=$("pw1").value,p2=$("pw2").value,err=$("pwErr");
+  if(!pwCheck(p1,p2,err)) return;
   err.textContent="Saving…";
+  try{await savePassword(p1);closeSync();toast("Password saved. Use it to sign in anywhere",true);}
+  catch(e){err.textContent="Couldn’t save the password. Try again.";}
+}
+/* signs in with a sync key; keeps each person's tasks separate on shared computers */
+async function connectWith(v,err){
+  if(!v){err.textContent="Paste your sync key first.";return false;}
+  err.textContent="Checking…";
+  GH.tok=v;
   try{
-    const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
-    const key=await pwKey(p1,salt,ITER);
-    const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(GH.tok)));
-    const content=JSON.stringify({v:1,iter:ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)});
-    let existing=null;
-    for(let page=1;page<=10&&!existing;page++){
-      const list=await gh("/gists?per_page=100&page="+page);
-      existing=list.find(x=>x.files&&x.files[LOGIN_FILE]);
-      if(list.length<100) break;
-    }
-    if(existing) await gh("/gists/"+existing.id,{method:"PATCH",body:JSON.stringify({files:{[LOGIN_FILE]:{content}}})});
-    else await gh("/gists",{method:"POST",body:JSON.stringify({description:"Quest Log sign-in (encrypted, keep this)",public:true,files:{[LOGIN_FILE]:{content}}})});
-    try{localStorage.setItem("questlog.haspw","1");}catch(e){}
-    closeSync();toast("Password set. Sign in on any computer with it",true);
-  }catch(e){err.textContent="Couldn’t save the password. Try again.";}
+    const u=await gh("/user");
+    const owner=lsGet("questlog.owner");
+    if(owner&&owner.toLowerCase()!==u.login.toLowerCase()){state=blank();lsSet(KEY,JSON.stringify(state));}
+    GH.user=u.login;
+    lsSet("questlog.ghtoken",v);lsSet("questlog.ghuser",u.login);lsSet("questlog.owner",u.login);lsSet("questlog.lastuser",u.login);lsSet("questlog.skipsignin",null);
+    GH.id=null;lsSet("questlog.gistid",null);
+    await gistPull();
+    if(!GH.id) throw Object.assign(new Error("no gist"),{status:403});
+    render();
+    return true;
+  }catch(e){
+    GH.tok=null;GH.user=null;lsSet("questlog.ghtoken",null);lsSet("questlog.ghuser",null);
+    err.textContent=e.status===401?"That key didn’t work. Check you copied all of it.":e.status===403||e.status===404?"That key doesn’t have the gist permission. Use the key link, which ticks it for you.":"Couldn’t reach GitHub. Check your connection and try again.";
+    return false;
+  }
 }
 async function pwSignIn(){
-  const u=(document.getElementById("uIn").value||"").trim(), pw=document.getElementById("pwIn").value, err=document.getElementById("tokErr");
+  const u=($("uIn").value||"").trim().replace(/^@/,""), pw=$("pwIn").value, err=$("tokErr");
   if(!u||!pw){err.textContent="Enter your username and password.";return;}
   err.textContent="Signing in…";
+  let tok;
   try{
     const r=await fetch("https://api.github.com/users/"+encodeURIComponent(u)+"/gists?per_page=100",{cache:"no-store"});
     if(!r.ok) throw Object.assign(new Error(),{kind:r.status===404?"user":"net"});
@@ -1636,88 +1694,126 @@ async function pwSignIn(){
     if(!g) throw Object.assign(new Error(),{kind:"nopw"});
     const full=await (await fetch("https://api.github.com/gists/"+g.id,{cache:"no-store"})).json();
     const d=JSON.parse(full.files[LOGIN_FILE].content);
-    let tok;
     try{
       const key=await pwKey(pw,unb64(d.salt),d.iter);
       tok=new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(d.iv)},key,unb64(d.ct)));
     }catch(e){throw Object.assign(new Error(),{kind:"pw"});}
-    document.getElementById("tokIn").value=tok;
-    await connect();
   }catch(e){
-    err.textContent=e.kind==="pw"?"Wrong password.":e.kind==="user"?"No GitHub user with that name.":e.kind==="nopw"?"No password set yet. Sign in with your sync key below, then set one.":"Couldn’t reach GitHub. Try again.";
+    err.textContent=e.kind==="pw"?"Wrong password. Use “Forgot password?” below if you’re stuck.":e.kind==="user"?"No account with that username. Check “Forgot username?” below.":e.kind==="nopw"?"That account hasn’t set a password yet. Use “Forgot password?” below to sign in with a key.":"Couldn’t reach GitHub. Try again.";
+    return;
   }
+  if(await connectWith(tok,err)){closeSync();toast("Signed in as "+GH.user,true);}
 }
-function openSync(){
-  const box=document.getElementById("syncBox");
+async function keySignIn(){
+  const err=$("keyErr");
+  if(await connectWith(($("tokIn").value||"").trim(),err)){openSync("Signed in. Now choose a new password so you can sign in with it next time.");}
+}
+async function createAccount(){
+  const key=($("newKey").value||"").trim(),p1=$("npw1").value,p2=$("npw2").value,err=$("crErr");
+  if(!key){err.textContent="Paste your sync key (step 3).";return;}
+  if(!pwCheck(p1,p2,err)) return;
+  if(!lsGet("questlog.owner")&&state.projects.length&&!confirm("Keep the tasks already on this computer in your new account?\n\nOK keeps them. Cancel starts with an empty account.")){state=blank();lsSet(KEY,JSON.stringify(state));}
+  if(!(await connectWith(key,err))) return;
+  err.textContent="Saving your password…";
+  try{await savePassword(p1);}catch(e){err.textContent="You’re signed in, but the password didn’t save. Click your name at the top to try again.";return;}
+  closeSync();toast("Welcome, "+GH.user+"! Sign in anywhere with your username and password",true);
+}
+async function signOut(){
+  if(!confirm("Sign out on this computer?\n\nYour tasks are removed from this computer but stay safe in your account. Sign in again to get them back.")) return;
+  if(pushTimer){clearTimeout(pushTimer);await gistPush();}
+  GH.tok=GH.id=GH.user=null;
+  ["questlog.ghtoken","questlog.gistid","questlog.ghuser","questlog.owner","questlog.haspw"].forEach(k=>lsSet(k,null));
+  state=blank();lsSet(KEY,JSON.stringify(state));
+  ui.view="home";saveUI();
+  setSync("Saved on this device");acctTab="signin";render();openSync();toast("Signed out");
+}
+async function copyInvite(){
+  try{await navigator.clipboard.writeText(APP_URL);toast("Link copied");}catch(e){window.prompt("Copy this link:",APP_URL);}
+}
+const forgotHTML=()=>`
+  <details class="forgot"><summary>Forgot password?</summary>
+    <p>Make a new sync key on GitHub and sign in with it, then choose a new password. Your tasks stay safe.</p>
+    <ol><li><a href="${TOKEN_URL}" target="_blank" rel="noopener">Open the sync key page</a>. If GitHub asks you to sign in and you’ve forgotten that password too, use <a href="https://github.com/password_reset" target="_blank" rel="noopener">GitHub’s password reset</a>. It emails you a link.</li>
+      <li>Set <b>Expiration</b> to <b>No expiration</b>, click <b>Generate token</b>, and copy the key.</li>
+      <li>Paste it here:</li></ol>
+    <input class="field" id="tokIn" placeholder="ghp_…" aria-label="Sync key" autocomplete="off" spellcheck="false">
+    <div class="merr" id="keyErr"></div>
+    <div class="mrow"><button class="go cut" data-m="connect">Sign in with key</button></div>
+  </details>
+  <details class="forgot"><summary>Forgot username?</summary>
+    <p>Your username is your GitHub username.${lsGet("questlog.lastuser")?` The last one used on this computer was <b>${esc(lsGet("questlog.lastuser"))}</b>.`:""}</p>
+    <ol><li><a href="https://github.com/login" target="_blank" rel="noopener">Sign in to GitHub</a> with your <b>email address</b> instead.</li>
+      <li>Your username is shown when you click your profile picture at the top right.</li></ol>
+    <p>Can’t get into GitHub at all? <a href="https://github.com/password_reset" target="_blank" rel="noopener">Reset it by email</a>.</p>
+  </details>`;
+function openSync(note){
+  const box=$("syncBox");
   if(GH.tok){
-    box.innerHTML=`<h3 id="syncTitle">Signed in</h3>
-      <div class="who">${esc(GH.user||"GitHub user")}</div>
-      <p>Your tasks are saved to your GitHub account and load on any computer where you sign in.</p>
-      <h3 style="font-size:17px;margin-top:6px">${localStorage.getItem("questlog.haspw")?"Change your password":"Set a password for other computers"}</h3>
-      <p>Then on any other computer you just sign in with your username and this password. No key needed.</p>
-      <input class="field" id="pw1" type="password" placeholder="New password" aria-label="New password" autocomplete="new-password">
-      <input class="field" id="pw2" type="password" placeholder="Type it again" aria-label="Confirm password" autocomplete="new-password">
-      <div class="merr" id="pwErr"></div>
-      <div class="mrow"><button class="ghost cut" data-m="signout">Sign out on this computer</button>
-      <button class="ghost cut" data-m="close">Close</button><button class="go cut" data-m="setpw">Save password</button></div>`;
+    const has=!!lsGet("questlog.haspw");
+    box.innerHTML=`<h3 id="syncTitle">${esc(GH.user||"Your account")}</h3>
+      <p>Your tasks are saved in your account and load on any computer where you sign in.</p>
+      ${note?`<div class="mnote">${esc(note)}</div>`:""}
+      <div class="msect"><h4>${has?"Change password":"Choose a password"}</h4>
+        <input class="field plain" id="pw1" type="password" placeholder="New password" aria-label="New password" autocomplete="new-password">
+        <input class="field plain" id="pw2" type="password" placeholder="Type it again" aria-label="Confirm password" autocomplete="new-password">
+        <div class="merr" id="pwErr"></div>
+        <div class="mrow"><button class="go cut" data-m="setpw">Save password</button></div></div>
+      <div class="msect"><h4>Invite someone</h4>
+        <p>Send them this link. They click <b>Create account</b> and get their own private task list. They can’t see yours.</p>
+        <div class="invite"><code>${esc(APP_URL)}</code><button class="ghost cut" data-m="invite">Copy link</button></div></div>
+      <div class="mrow"><button class="ghost cut" data-m="signout">Sign out</button><button class="ghost cut" data-m="close">Close</button></div>`;
+  } else if(acctTab==="create"){
+    box.innerHTML=`<div class="tabs"><button class="tab" data-m="tab-signin">Sign in</button><button class="tab on" data-m="tab-create">Create account</button></div>
+      <h3 id="syncTitle">Create your account</h3>
+      <p>It’s free. Your tasks are stored privately in your own GitHub account, so only you can see them.</p>
+      <ol class="steps">
+        <li><b>Get a free GitHub account.</b> <a href="https://github.com/signup" target="_blank" rel="noopener">Sign up on GitHub</a>, or skip this if you have one. Use an email you can get into, because that’s how you recover your account if you forget your details. Your GitHub username becomes your Quest Log username.</li>
+        <li><b>Make your sync key.</b> <a href="${TOKEN_URL}" target="_blank" rel="noopener">Open the key page</a> (it’s pre-filled). Set <b>Expiration</b> to <b>No expiration</b>, click <b>Generate token</b>, and copy the key.</li>
+        <li><b>Paste the key.</b><input class="field" id="newKey" placeholder="ghp_…" aria-label="Sync key" autocomplete="off" spellcheck="false"></li>
+        <li><b>Choose a password</b> for signing in on other computers.
+          <input class="field plain" id="npw1" type="password" placeholder="Password" aria-label="Password" autocomplete="new-password">
+          <input class="field plain" id="npw2" type="password" placeholder="Type it again" aria-label="Confirm password" autocomplete="new-password"></li>
+      </ol>
+      <div class="merr" id="crErr"></div>
+      <div class="mrow"><button class="ghost cut" data-m="skip">Use without an account</button><button class="go cut" data-m="create">Create account</button></div>`;
   } else {
-    box.innerHTML=`<h3 id="syncTitle">Sign in to Quest Log</h3>
-      <p>Sign in to load your tasks and keep them synced on every computer.</p>
-      <form id="pwForm" onsubmit="return false">
-      <input class="field" id="uIn" value="${DEFAULT_USER}" placeholder="GitHub username" aria-label="Username" autocomplete="username" spellcheck="false" style="font-family:inherit;font-size:16px">
-      <input class="field" id="pwIn" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password" style="font-family:inherit;font-size:16px">
+    box.innerHTML=`<div class="tabs"><button class="tab on" data-m="tab-signin">Sign in</button><button class="tab" data-m="tab-create">Create account</button></div>
+      <h3 id="syncTitle">Welcome back</h3>
+      <p>Sign in to load your tasks on this computer.</p>
+      <form onsubmit="return false">
+        <input class="field plain" id="uIn" value="${esc(lsGet("questlog.lastuser")||"")}" placeholder="Username" aria-label="Username" autocomplete="username" spellcheck="false" autocapitalize="off">
+        <input class="field plain" id="pwIn" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password">
       </form>
       <div class="merr" id="tokErr"></div>
-      <div class="mrow" style="margin-bottom:18px"><button class="ghost cut" data-m="skip">Continue without signing in</button><button class="go cut" data-m="pwsignin">Sign in</button></div>
-      <details><summary style="cursor:pointer;color:var(--muted);font-size:14px">First time, or no password yet? Use a sync key</summary>
-      <ol style="margin-top:10px">
-        <li><a href="${TOKEN_URL}" target="_blank" rel="noopener">Open the sync key page on GitHub</a> (everything is pre-filled).</li>
-        <li>Set <b>Expiration</b> to <b>No expiration</b>, then click <b>Generate token</b>.</li>
-        <li>Paste the key (starts with <b>ghp_</b>) below.</li>
-      </ol>
-      <input class="field" id="tokIn" placeholder="ghp_…" aria-label="GitHub sync key" autocomplete="off" spellcheck="false">
-      <div class="mrow"><button class="go cut" data-m="connect">Sign in with key</button></div></details>`;
+      <div class="mrow" style="margin-bottom:14px"><button class="ghost cut" data-m="skip">Use without an account</button><button class="go cut" data-m="pwsignin">Sign in</button></div>
+      ${forgotHTML()}
+      <p class="msmall">New here? <button class="linkish" data-m="tab-create">Create an account</button></p>`;
   }
-  document.getElementById("syncModal").classList.add("open");
-  const f=document.getElementById("pwIn")||document.getElementById("pw1");if(f)f.focus();
+  $("syncModal").classList.add("open");
+  const f=$("uIn")&&!$("uIn").value?$("uIn"):($("pwIn")||$("newKey")||$("pw1"));
+  if(f) setTimeout(()=>f.focus(),20);
 }
-function closeSync(){document.getElementById("syncModal").classList.remove("open");}
-async function connect(){
-  const v=(document.getElementById("tokIn").value||"").trim(), err=document.getElementById("tokErr");
-  if(!v){err.textContent="Paste your sync key first.";return;}
-  err.textContent="Checking…";
-  GH.tok=v;
-  try{
-    const u=await gh("/user");
-    GH.user=u.login;
-    try{localStorage.setItem("questlog.ghtoken",v);localStorage.setItem("questlog.ghuser",u.login);}catch(e){}
-    GH.id=null; try{localStorage.removeItem("questlog.gistid");}catch(e){}
-    await gistPull();
-    if(!GH.id) throw Object.assign(new Error("no gist"),{status:403});
-    closeSync(); toast("Signed in. Your tasks will sync",true);
-  }catch(e){
-    GH.tok=null;GH.user=null;
-    err.textContent=e.status===401?"That key didn’t work. Check you copied all of it.":e.status===403||e.status===404?"That key doesn’t have the gist permission. Use the link in step 1.":"Couldn’t reach GitHub. Check your connection and try again.";
-  }
-}
-function signOut(){
-  GH.tok=GH.id=GH.user=null;
-  try{["questlog.ghtoken","questlog.gistid","questlog.ghuser"].forEach(k=>localStorage.removeItem(k));}catch(e){}
-  setSync("Saved on this device");closeSync();toast("Signed out on this computer");
-}
-document.getElementById("syncBtn").addEventListener("click",openSync);
-document.getElementById("syncModal").addEventListener("click",e=>{
+function closeSync(){$("syncModal").classList.remove("open");}
+$("syncBtn").addEventListener("click",()=>openSync());
+$("syncModal").addEventListener("click",e=>{
   if(e.target.id==="syncModal") return closeSync();
   const m=e.target.closest("[data-m]");if(!m) return;
-  ({close:closeSync,connect:connect,signout:signOut,setpw:setPassword,pwsignin:pwSignIn,
-    skip:()=>{try{localStorage.setItem("questlog.skipsignin","1");}catch(e){}closeSync();}})[m.dataset.m]();
+  const a=m.dataset.m;
+  if(a==="tab-signin"||a==="tab-create"){acctTab=a.slice(4);openSync();return;}
+  ({close:closeSync,connect:keySignIn,signout:signOut,setpw:setPassword,pwsignin:pwSignIn,create:createAccount,invite:copyInvite,
+    skip:()=>{lsSet("questlog.skipsignin","1");closeSync();}})[a]?.();
 });
-document.getElementById("syncModal").addEventListener("keydown",e=>{
-  if(e.key==="Escape") closeSync();
-  if(e.key==="Enter"&&e.target.id==="tokIn"){e.preventDefault();connect();}
-  if(e.key==="Enter"&&(e.target.id==="pwIn"||e.target.id==="uIn")){e.preventDefault();pwSignIn();}
-  if(e.key==="Enter"&&(e.target.id==="pw1"||e.target.id==="pw2")){e.preventDefault();setPassword();}
+$("syncModal").addEventListener("keydown",e=>{
+  if(e.key==="Escape") return closeSync();
+  if(e.key!=="Enter") return;
+  const id=e.target.id;
+  if(id==="tokIn"){e.preventDefault();keySignIn();}
+  else if(id==="uIn"){e.preventDefault();$("pwIn").focus();}
+  else if(id==="pwIn"){e.preventDefault();pwSignIn();}
+  else if(id==="pw1"||id==="pw2"){e.preventDefault();setPassword();}
+  else if(id==="newKey"||id==="npw1"||id==="npw2"){e.preventDefault();createAccount();}
 });
+if(GH.tok&&GH.user&&!lsGet("questlog.owner")) lsSet("questlog.owner",GH.user);
 const inClaude=!!(window.claude&&window.claude.use);
 if(!inClaude){
   document.getElementById("syncBtn").hidden=false;
