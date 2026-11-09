@@ -10,11 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: echo 'run 2'
       - name: Create and configure Supabase project
         env:
           SB: ${{ secrets.SUPABASE_TOKEN }}
         run: |
           set -uo pipefail
+          exec > >(tee /tmp/out.txt) 2>&1
           A=https://api.supabase.com/v1
           api(){ local m=$1 u=$2 d=${3:-}; local code
             if [ -n "$d" ]; then code=$(curl -sS -o /tmp/body -w '%{http_code}' -X "$m" -H "Authorization: Bearer $SB" -H "Content-Type: application/json" "$u" --data-binary "$d")
@@ -44,3 +46,10 @@ jobs:
           jq -n --arg url "https://$REF.supabase.co" --arg anon "$ANON" '{url:$url,anon:$anon}' > supabase-public.json
           git config user.name "quest-log-setup"; git config user.email "quest-log-setup@users.noreply.github.com"
           git add supabase-public.json && git commit -m "Add public Supabase app config" && git push
+      - name: Save setup status
+        if: always()
+        run: |
+          git pull -q --rebase || true
+          { echo "Setup run on $(date -u)"; sed -E 's/sbp_[A-Za-z0-9]+/[hidden]/g; s/eyJ[A-Za-z0-9._-]+/[key]/g' /tmp/out.txt 2>/dev/null | tail -40; } > setup-status.txt
+          git config user.name "quest-log-setup"; git config user.email "quest-log-setup@users.noreply.github.com"
+          git add setup-status.txt && git commit -qm "Setup status" && git push -q || true
