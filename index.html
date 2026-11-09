@@ -345,7 +345,22 @@ button.meta:hover{color:var(--ink)}
 .mbox ol{margin:0 0 16px;padding-left:20px}
 .mbox li{margin-bottom:6px}
 .mbox a{color:var(--focus)}
-.mbox .field{width:100%;margin-bottom:10px;font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.mbox .field{width:100%;margin-bottom:12px;font-size:16px}
+.flabel{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 5px}
+.mhint{font-size:12px;color:var(--muted);margin:-4px 0 10px;line-height:1.4}
+.go.wide,.ghost.wide{width:100%;padding:12px 16px}
+.center{text-align:center}
+.linkish.muted{color:var(--muted)}
+.profmenu{position:fixed;z-index:75;width:260px;background:var(--surface);box-shadow:var(--shadow);border:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:12px}
+.phero{display:flex;align-items:center;gap:12px}
+.av.big{width:44px;height:44px;font-size:20px;display:grid;place-items:center;background:var(--gold);color:var(--gold-ink);font-weight:700;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.pname{font-weight:700;font-size:18px;word-break:break-word}
+.pstat{font-size:14px;color:var(--muted)}
+.pstat b{color:var(--ink);font-size:18px;margin-right:2px}
+.pfoot{border-top:1px solid var(--line);padding-top:10px;font-size:13px}
+.ptitle{font-weight:700;font-size:16px}
+.profmenu .field{width:100%;margin-bottom:10px}
+.profmenu .merr{min-height:18px;font-size:13px;color:var(--red)}
 .mrow{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .merr{color:var(--red);font-size:14px;min-height:20px;margin-bottom:8px}
 .who{font-size:18px;font-weight:600;margin-bottom:14px}
@@ -510,6 +525,7 @@ button.meta:hover{color:var(--ink)}
 <div class="modal" id="syncModal" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
   <div class="mbox cut" id="syncBox"></div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 (function(){
 const PALETTE=[["#2a9d8f","Teal"],["#3aa0c8","Lagoon"],["#4a74e0","Cobalt"],["#7467de","Iris"],["#a06ad3","Orchid"],["#d6608c","Rose"],
@@ -523,7 +539,7 @@ const blank=()=>({projects:[],xp:0,log:{},updatedAt:0});
 function normalize(s){
   s.projects=Array.isArray(s.projects)?s.projects:[];
   s.projects.forEach(p=>{p.folders=p.folders||[];p.tasks=p.tasks||[];if(!p.color)p.color=COLORS[0];if(OLD_COLORS[p.color])p.color=OLD_COLORS[p.color];});
-  s.log=s.log||{};s.xp=s.xp||0;
+  s.log=s.log||{};s.xp=s.xp||0;delete s.meetings;delete s.meetingsAt;delete s.meetColor;
   return s;
 }
 function load(){
@@ -616,40 +632,13 @@ function drawFacets(){
   $("facets").innerHTML=s+"</svg>";
 }
 
-/* ---------- persistence: this device + your claude.ai account ---------- */
-let docRef=null, saveTimer=null, syncLabel="Saved on this device";
-const GFILE="questlog.json";
-const GH={tok:null,id:null,user:null};
-try{GH.tok=localStorage.getItem("questlog.ghtoken");GH.id=localStorage.getItem("questlog.gistid");GH.user=localStorage.getItem("questlog.ghuser");}catch(e){}
+/* ---------- persistence: this device + your account ---------- */
+let saveTimer=null, syncLabel="Saved on this device", acct=null;
 function save(){
   state.updatedAt=Date.now();
   try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
-  clearTimeout(saveTimer);
-  if(docRef) saveTimer=setTimeout(()=>{docRef.set({json:JSON.stringify(state),updatedAt:state.updatedAt}).catch(()=>{});},700);
-  if(GH.tok&&GH.id) gistPushSoon();
+  if(acct) pushSoon();
 }
-(async()=>{
-  try{
-    if(!window.claude||!window.claude.use) return;
-    const [db,user]=await Promise.all([window.claude.use("db"),window.claude.use("user")]);
-    if(!db||!user) return;
-    const id=await user.id(); if(!id) return;
-    const ref=db.collection("data/users/"+id).doc("questlog");
-    const snap=await ref.get();
-    if(snap.exists){
-      const d=snap.data();
-      if(d&&d.json&&(d.updatedAt||0)>(state.updatedAt||0)){
-        const view=state.view;
-        state=normalize(Object.assign(blank(),JSON.parse(d.json)));
-        if(proj(view)||view==="all"||view==="today") state.view=view;
-        try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
-      }
-    }
-    docRef=ref; syncLabel="Synced to your account";
-    if(!snap.exists||(snap.data()&&(snap.data().updatedAt||0)<state.updatedAt)) save();
-    render();
-  }catch(e){}
-})();
 
 /* ---------- rendering ---------- */
 function render(){
@@ -1202,7 +1191,7 @@ function weekHTML(){
   const days=calDays(),dIso=days.map(isoOf),t0=todayISO(),now=new Date(),nowMin=now.getHours()*60+now.getMinutes();
   const first=days[0],last=days[days.length-1];
   const rng=first.toLocaleDateString(undefined,{day:"numeric",month:"short"})+" – "+last.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});
-  const all=allTasks(), meets=state.meetings||[], mc=meetColor();
+  const all=allTasks(), meets=[], mc=meetColor();
   const tray=all.filter(x=>todo(x.t)&&!x.t.slot&&(!ui.calProj||x.p.id===ui.calProj)).sort(rank);
   const H=(WK.end-WK.start)*WK.ph;
   let head=`<div></div>`,allday=`<div class="gl">All day</div>`,cols="";
@@ -1240,8 +1229,7 @@ function weekHTML(){
   const n=days.length;
   return `<div class="calbar"><button class="ghost cut" data-act="calnav" data-v="0">Today</button><button class="nb cut" data-act="calnav" data-v="-1" aria-label="Previous week">‹</button><button class="nb cut" data-act="calnav" data-v="1" aria-label="Next week">›</button>
     <span class="rng">${rng}</span><span class="sp"></span>
-    <button class="pill cut ${ui.calWeekend?"on":""}" data-act="calwknd">Weekends</button>
-    <button class="meetbtn cut" data-act="meetings" style="--mc:${mc}"><i></i>${meets.length?"Meetings":"Add work meetings"}</button></div>
+    <button class="pill cut ${ui.calWeekend?"on":""}" data-act="calwknd">Weekends</button></div>
   <div class="calwrap">
     <aside class="tray panel cut" id="tray"><h3>To schedule</h3>
       <select class="field" id="calproj" aria-label="Filter by project"><option value="">All projects</option>${active().map(p=>`<option value="${p.id}" ${ui.calProj===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select>
@@ -1535,8 +1523,6 @@ function openMeet(){
   box.classList.add("open");
 }
 function closeMeet(){const b=$("meetModal");if(b)b.classList.remove("open");}
-document.addEventListener("dragover",e=>{if(ui.view==="week"&&e.dataTransfer&&[...e.dataTransfer.types].includes("Files")) e.preventDefault();});
-document.addEventListener("drop",e=>{if(ui.view!=="week"||!e.dataTransfer||!e.dataTransfer.files.length) return;e.preventDefault();readICSFile(e.dataTransfer.files[0]);});
 setInterval(()=>{if(ui.view==="week"&&!cd&&!qadd&&!drawerId&&!document.querySelector(".modal.open")) renderMain();},60000);
 
 /* theme */
@@ -1547,284 +1533,285 @@ $("themeBtn").addEventListener("click",()=>{
   root.dataset.theme=dark?"light":"dark";try{localStorage.setItem("questlog.theme",root.dataset.theme);}catch(e){}
 });
 
-/* ---------- GitHub sync (used on the GitHub Pages copy) ---------- */
+/* ---------- accounts and syncing (Supabase) ---------- */
+const SB_URL="https://qccqpgyjkingkibnqcvq.supabase.co", SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjY3FwZ3lqa2luZ2tpYm5xY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQxNzE4MTAsImV4cCI6MjEwOTc0NzgxMH0.AquV6K7NwZ3_I1gZSIi4J0k2lBSQg_4_0PotSZYEOVQ";
+const APP_URL=location.origin+location.pathname;
+const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+const lsSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}};
+let sb=null, pushTimer=null, lastPull=0, pulling=false, recovering=/type=recovery/.test(location.hash), profOpen=false, profView="main";
+try{if(window.supabase) sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});}catch(e){}
+
 function setSync(label,cls){
   syncLabel=label;
   const el=document.querySelector(".sync");if(el)el.textContent=label;
-  const b=document.getElementById("syncBtn");b.classList.remove("synced","warn");if(cls)b.classList.add(cls);
-  renderUser(label);
+  const b=$("syncBtn");b.classList.remove("synced","warn");if(cls)b.classList.add(cls);
+  b.title=acct?acct.username+" · "+label:"Sign in";
 }
-function renderUser(label){
-  const b=document.getElementById("syncBtn");
-  if(GH.tok){
-    const n=GH.user||"Signed in";
+function renderUser(){
+  const b=$("syncBtn");b.hidden=false;
+  if(acct){
+    const n=acct.username||"Account";
     b.classList.remove("out");
-    b.innerHTML=`<span class="av" aria-hidden="true">${esc(n.charAt(0).toUpperCase())}</span><span class="un">${esc(n)}</span><span class="dot" aria-hidden="true"></span>`;
-    b.title=n+" · "+(label||syncLabel);b.setAttribute("aria-label","Account: "+n+". "+(label||syncLabel));
+    b.innerHTML=`<span class="av" aria-hidden="true">${esc(n.charAt(0).toUpperCase())}</span><span class="un">${esc(n)}</span>`;
+    b.setAttribute("aria-label","Account: "+n);b.setAttribute("aria-expanded",String(profOpen));
   } else {
-    b.classList.add("out");b.classList.remove("synced","warn");
-    b.textContent="Sign in";b.title="Sign in to sync across computers";b.setAttribute("aria-label","Sign in");
+    b.classList.add("out");b.textContent="Sign in";b.setAttribute("aria-label","Sign in");b.removeAttribute("aria-expanded");
   }
 }
-async function gh(path,opt){
-  opt=opt||{};
-  const r=await fetch("https://api.github.com"+path,Object.assign({},opt,{cache:"no-store",headers:Object.assign(
-    {"Authorization":"Bearer "+GH.tok,"Accept":"application/vnd.github+json"},opt.body?{"Content-Type":"application/json"}:{})}));
-  if(!r.ok){const e=new Error("GitHub "+r.status);e.status=r.status;throw e;}
-  return r.json();
-}
-async function gistFind(){
-  if(GH.id) return GH.id;
-  for(let page=1;page<=10;page++){
-    const list=await gh("/gists?per_page=100&page="+page);
-    const g=list.find(x=>x.files&&x.files[GFILE]);
-    if(g){GH.id=g.id;break;}
-    if(list.length<100) break;
-  }
-  if(!GH.id){
-    const g=await gh("/gists",{method:"POST",body:JSON.stringify({description:"Quest Log data (synced by the app, keep this)",public:false,
-      files:{[GFILE]:{content:JSON.stringify(state)}}})});
-    GH.id=g.id;
-  }
-  try{localStorage.setItem("questlog.gistid",GH.id);}catch(e){}
-  return GH.id;
-}
-let pushTimer=null,lastPull=0,pulling=false;
-function gistPushSoon(){clearTimeout(pushTimer);setSync("Syncing…");pushTimer=setTimeout(gistPush,1500);}
-async function gistPush(){
-  pushTimer=null;
-  if(!GH.tok||!GH.id) return;
-  try{await gh("/gists/"+GH.id,{method:"PATCH",body:JSON.stringify({files:{[GFILE]:{content:JSON.stringify(state)}}})});
-    setSync("Synced to GitHub · "+GH.user,"synced");}
-  catch(e){setSync(e.status===401?"Sync key expired. Click ☁ to reconnect":"Couldn’t sync. Saved on this device","warn");}
-}
-async function gistPull(){
-  if(!GH.tok||pulling) return; pulling=true;
+function pushSoon(){clearTimeout(pushTimer);setSync("Saving…");pushTimer=setTimeout(push,1200);}
+async function push(){
+  pushTimer=null;if(!acct||!sb) return;
   try{
-    const id=await gistFind();
-    const g=await gh("/gists/"+id);
-    const f=g.files&&g.files[GFILE];
-    if(!f){GH.id=null;try{localStorage.removeItem("questlog.gistid");}catch(e){} pulling=false;return gistPull();}
-    let txt=f.content; if(f.truncated) txt=await (await fetch(f.raw_url,{cache:"no-store"})).text();
-    let remote={};try{remote=JSON.parse(txt||"{}");}catch(e){}
-    if((remote.updatedAt||0)>(state.updatedAt||0)){
-      const view=state.view;
-      state=normalize(Object.assign(blank(),remote));
-      if(view==="all"||view==="today"||proj(view)) state.view=view;
-      try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
-      if(!editing) render();
-    } else if((remote.updatedAt||0)<(state.updatedAt||0)) await gistPush();
-    setSync("Synced to GitHub · "+GH.user,"synced");
-    lastPull=Date.now();
-  }catch(e){
-    setSync(e.status===401?"Sync key expired. Click ☁ to reconnect":"Couldn’t reach GitHub. Saved on this device","warn");
-  }
+    const {error}=await sb.from("user_data").upsert({user_id:acct.id,data:state,updated_at:state.updatedAt||Date.now()});
+    if(error) throw error;
+    setSync("Saved to your account","synced");
+  }catch(e){setSync(navigator.onLine===false?"Offline. Saved on this device":"Couldn’t reach your account. Saved on this device","warn");}
+}
+async function pull(){
+  if(!acct||!sb||pulling) return;pulling=true;
+  try{
+    const {data,error}=await sb.from("user_data").select("data,updated_at").eq("user_id",acct.id).maybeSingle();
+    if(error) throw error;
+    if(data&&(data.updated_at||0)>(state.updatedAt||0)){
+      state=normalize(Object.assign(blank(),data.data||{}));state.updatedAt=data.updated_at;
+      lsSet(KEY,JSON.stringify(state));
+      if(!editing&&!cd&&!qadd) render();
+    } else if(!data||(data.updated_at||0)<(state.updatedAt||0)) await push();
+    setSync("Saved to your account","synced");lastPull=Date.now();
+  }catch(e){setSync("Offline. Saved on this device","warn");}
   pulling=false;
 }
-const TOKEN_URL="https://github.com/settings/tokens/new?scopes=gist&description=Quest%20Log%20sync";
-const LOGIN_FILE="questlog-login.json", ITER=600000;
-const APP_URL=location.origin+location.pathname;
-let acctTab="signin";
-const b64=u=>{let t="";u.forEach(x=>t+=String.fromCharCode(x));return btoa(t);};
-const unb64=x=>Uint8Array.from(atob(x),c=>c.charCodeAt(0));
-const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
-const lsSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}};
-async function pwKey(pw,salt,iter){
-  const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
-}
-async function savePassword(pw){
-  const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
-  const key=await pwKey(pw,salt,ITER);
-  const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(GH.tok)));
-  const content=JSON.stringify({v:1,iter:ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)});
-  let existing=null;
-  for(let page=1;page<=10&&!existing;page++){
-    const list=await gh("/gists?per_page=100&page="+page);
-    existing=list.find(x=>x.files&&x.files[LOGIN_FILE]);
-    if(list.length<100) break;
+const isUUID=s=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s||"");
+/* loads a signed-in person's tasks; keeps different people's tasks apart on a shared computer */
+async function startSession(user){
+  const owner=lsGet("questlog.owner");
+  if(owner!==user.id&&state.projects.length){
+    const {data:row}=await sb.from("user_data").select("updated_at").eq("user_id",user.id).maybeSingle();
+    if(row||isUUID(owner)||!confirm("Add the tasks already on this computer to your account?\n\nOK adds them. Cancel starts with an empty account.")){state=blank();}
+    else state.updatedAt=Date.now();
+    lsSet(KEY,JSON.stringify(state));
   }
-  if(existing) await gh("/gists/"+existing.id,{method:"PATCH",body:JSON.stringify({files:{[LOGIN_FILE]:{content}}})});
-  else await gh("/gists",{method:"POST",body:JSON.stringify({description:"Quest Log sign-in (encrypted, keep this)",public:true,files:{[LOGIN_FILE]:{content}}})});
-  lsSet("questlog.haspw","1");
+  lsSet("questlog.owner",user.id);
+  let username=(user.user_metadata&&user.user_metadata.username)||"";
+  try{const {data:p}=await sb.from("profiles").select("username").eq("id",user.id).maybeSingle();if(p&&p.username)username=p.username;}catch(e){}
+  acct={id:user.id,username:username||(user.email||"").split("@")[0]};
+  lsSet("questlog.lastuser",acct.username);
+  ["questlog.ghtoken","questlog.gistid","questlog.ghuser","questlog.haspw","questlog.skipsignin"].forEach(k=>lsSet(k,null));
+  renderUser();
+  await pull();
+  render();
 }
-function pwCheck(p1,p2,err){
-  if(p1.length<4){err.textContent="Use at least 4 characters.";return false;}
-  if(p1!==p2){err.textContent="The passwords don’t match.";return false;}
-  return true;
-}
-async function setPassword(){
-  const p1=$("pw1").value,p2=$("pw2").value,err=$("pwErr");
-  if(!pwCheck(p1,p2,err)) return;
-  err.textContent="Saving…";
-  try{await savePassword(p1);closeSync();toast("Password saved. Use it to sign in anywhere",true);}
-  catch(e){err.textContent="Couldn’t save the password. Try again.";}
-}
-/* signs in with a sync key; keeps each person's tasks separate on shared computers */
-async function connectWith(v,err){
-  if(!v){err.textContent="Paste your sync key first.";return false;}
-  err.textContent="Checking…";
-  GH.tok=v;
+/* one-time: refresh this computer from the old GitHub sync before moving to an account */
+async function legacyRefresh(){
+  const tok=lsGet("questlog.ghtoken");if(!tok) return;
   try{
-    const u=await gh("/user");
-    const owner=lsGet("questlog.owner");
-    if(owner&&owner.toLowerCase()!==u.login.toLowerCase()){state=blank();lsSet(KEY,JSON.stringify(state));}
-    GH.user=u.login;
-    lsSet("questlog.ghtoken",v);lsSet("questlog.ghuser",u.login);lsSet("questlog.owner",u.login);lsSet("questlog.lastuser",u.login);lsSet("questlog.skipsignin",null);
-    GH.id=null;lsSet("questlog.gistid",null);
-    await gistPull();
-    if(!GH.id) throw Object.assign(new Error("no gist"),{status:403});
-    render();
-    return true;
-  }catch(e){
-    GH.tok=null;GH.user=null;lsSet("questlog.ghtoken",null);lsSet("questlog.ghuser",null);
-    err.textContent=e.status===401?"That key didn’t work. Check you copied all of it.":e.status===403||e.status===404?"That key doesn’t have the gist permission. Use the key link, which ticks it for you.":"Couldn’t reach GitHub. Check your connection and try again.";
-    return false;
-  }
+    const h={Authorization:"Bearer "+tok,Accept:"application/vnd.github+json"};
+    const list=await (await fetch("https://api.github.com/gists?per_page=100",{headers:h,cache:"no-store"})).json();
+    const g=Array.isArray(list)&&list.find(x=>x.files&&x.files["questlog.json"]);if(!g) return;
+    const full=await (await fetch("https://api.github.com/gists/"+g.id,{headers:h,cache:"no-store"})).json();
+    const f=full.files["questlog.json"];const txt=f.truncated?await (await fetch(f.raw_url)).text():f.content;
+    const remote=JSON.parse(txt||"{}");
+    if((remote.updatedAt||0)>(state.updatedAt||0)){state=normalize(Object.assign(blank(),remote));lsSet(KEY,JSON.stringify(state));render();}
+  }catch(e){}
 }
-async function pwSignIn(){
-  const u=($("uIn").value||"").trim().replace(/^@/,""), pw=$("pwIn").value, err=$("tokErr");
-  if(!u||!pw){err.textContent="Enter your username and password.";return;}
-  err.textContent="Signing in…";
-  let tok;
-  try{
-    const r=await fetch("https://api.github.com/users/"+encodeURIComponent(u)+"/gists?per_page=100",{cache:"no-store"});
-    if(!r.ok) throw Object.assign(new Error(),{kind:r.status===404?"user":"net"});
-    const g=(await r.json()).find(x=>x.files&&x.files[LOGIN_FILE]);
-    if(!g) throw Object.assign(new Error(),{kind:"nopw"});
-    const full=await (await fetch("https://api.github.com/gists/"+g.id,{cache:"no-store"})).json();
-    const d=JSON.parse(full.files[LOGIN_FILE].content);
-    try{
-      const key=await pwKey(pw,unb64(d.salt),d.iter);
-      tok=new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(d.iv)},key,unb64(d.ct)));
-    }catch(e){throw Object.assign(new Error(),{kind:"pw"});}
-  }catch(e){
-    err.textContent=e.kind==="pw"?"Wrong password. Use “Forgot password?” below if you’re stuck.":e.kind==="user"?"No account with that username. Check “Forgot username?” below.":e.kind==="nopw"?"That account hasn’t set a password yet. Use “Forgot password?” below to sign in with a key.":"Couldn’t reach GitHub. Try again.";
-    return;
-  }
-  if(await connectWith(tok,err)){closeSync();toast("Signed in as "+GH.user,true);}
-}
-async function keySignIn(){
-  const err=$("keyErr");
-  if(await connectWith(($("tokIn").value||"").trim(),err)){openSync("Signed in. Now choose a new password so you can sign in with it next time.");}
-}
-async function createAccount(){
-  const key=($("newKey").value||"").trim(),p1=$("npw1").value,p2=$("npw2").value,err=$("crErr");
-  if(!key){err.textContent="Paste your sync key (step 3).";return;}
-  if(!pwCheck(p1,p2,err)) return;
-  if(!lsGet("questlog.owner")&&state.projects.length&&!confirm("Keep the tasks already on this computer in your new account?\n\nOK keeps them. Cancel starts with an empty account.")){state=blank();lsSet(KEY,JSON.stringify(state));}
-  if(!(await connectWith(key,err))) return;
-  err.textContent="Saving your password…";
-  try{await savePassword(p1);}catch(e){err.textContent="You’re signed in, but the password didn’t save. Click your name at the top to try again.";return;}
-  closeSync();toast("Welcome, "+GH.user+"! Sign in anywhere with your username and password",true);
-}
-async function signOut(){
-  if(!confirm("Sign out on this computer?\n\nYour tasks are removed from this computer but stay safe in your account. Sign in again to get them back.")) return;
-  if(pushTimer){clearTimeout(pushTimer);await gistPush();}
-  GH.tok=GH.id=GH.user=null;
-  ["questlog.ghtoken","questlog.gistid","questlog.ghuser","questlog.owner","questlog.haspw"].forEach(k=>lsSet(k,null));
-  state=blank();lsSet(KEY,JSON.stringify(state));
-  ui.view="home";saveUI();
-  setSync("Saved on this device");acctTab="signin";render();openSync();toast("Signed out");
-}
-async function copyInvite(){
-  try{await navigator.clipboard.writeText(APP_URL);toast("Link copied");}catch(e){window.prompt("Copy this link:",APP_URL);}
-}
-const forgotHTML=()=>`
-  <details class="forgot"><summary>Forgot password?</summary>
-    <p>Make a new sync key on GitHub and sign in with it, then choose a new password. Your tasks stay safe.</p>
-    <ol><li><a href="${TOKEN_URL}" target="_blank" rel="noopener">Open the sync key page</a>. If GitHub asks you to sign in and you’ve forgotten that password too, use <a href="https://github.com/password_reset" target="_blank" rel="noopener">GitHub’s password reset</a>. It emails you a link.</li>
-      <li>Set <b>Expiration</b> to <b>No expiration</b>, click <b>Generate token</b>, and copy the key.</li>
-      <li>Paste it here:</li></ol>
-    <input class="field" id="tokIn" placeholder="ghp_…" aria-label="Sync key" autocomplete="off" spellcheck="false">
-    <div class="merr" id="keyErr"></div>
-    <div class="mrow"><button class="go cut" data-m="connect">Sign in with key</button></div>
-  </details>
-  <details class="forgot"><summary>Forgot username?</summary>
-    <p>Your username is your GitHub username.${lsGet("questlog.lastuser")?` The last one used on this computer was <b>${esc(lsGet("questlog.lastuser"))}</b>.`:""}</p>
-    <ol><li><a href="https://github.com/login" target="_blank" rel="noopener">Sign in to GitHub</a> with your <b>email address</b> instead.</li>
-      <li>Your username is shown when you click your profile picture at the top right.</li></ol>
-    <p>Can’t get into GitHub at all? <a href="https://github.com/password_reset" target="_blank" rel="noopener">Reset it by email</a>.</p>
-  </details>`;
-function openSync(note){
-  const box=$("syncBox");
-  if(GH.tok){
-    const has=!!lsGet("questlog.haspw");
-    box.innerHTML=`<h3 id="syncTitle">${esc(GH.user||"Your account")}</h3>
-      <p>Your tasks are saved in your account and load on any computer where you sign in.</p>
-      ${note?`<div class="mnote">${esc(note)}</div>`:""}
-      <div class="msect"><h4>${has?"Change password":"Choose a password"}</h4>
-        <input class="field plain" id="pw1" type="password" placeholder="New password" aria-label="New password" autocomplete="new-password">
-        <input class="field plain" id="pw2" type="password" placeholder="Type it again" aria-label="Confirm password" autocomplete="new-password">
-        <div class="merr" id="pwErr"></div>
-        <div class="mrow"><button class="go cut" data-m="setpw">Save password</button></div></div>
-      <div class="msect"><h4>Invite someone</h4>
-        <p>Send them this link. They click <b>Create account</b> and get their own private task list. They can’t see yours.</p>
-        <div class="invite"><code>${esc(APP_URL)}</code><button class="ghost cut" data-m="invite">Copy link</button></div></div>
-      <div class="mrow"><button class="ghost cut" data-m="signout">Sign out</button><button class="ghost cut" data-m="close">Close</button></div>`;
-  } else if(acctTab==="create"){
-    box.innerHTML=`<div class="tabs"><button class="tab" data-m="tab-signin">Sign in</button><button class="tab on" data-m="tab-create">Create account</button></div>
-      <h3 id="syncTitle">Create your account</h3>
-      <p>It’s free. Your tasks are stored privately in your own GitHub account, so only you can see them.</p>
-      <ol class="steps">
-        <li><b>Get a free GitHub account.</b> <a href="https://github.com/signup" target="_blank" rel="noopener">Sign up on GitHub</a>, or skip this if you have one. Use an email you can get into, because that’s how you recover your account if you forget your details. Your GitHub username becomes your Quest Log username.</li>
-        <li><b>Make your sync key.</b> <a href="${TOKEN_URL}" target="_blank" rel="noopener">Open the key page</a> (it’s pre-filled). Set <b>Expiration</b> to <b>No expiration</b>, click <b>Generate token</b>, and copy the key.</li>
-        <li><b>Paste the key.</b><input class="field" id="newKey" placeholder="ghp_…" aria-label="Sync key" autocomplete="off" spellcheck="false"></li>
-        <li><b>Choose a password</b> for signing in on other computers.
-          <input class="field plain" id="npw1" type="password" placeholder="Password" aria-label="Password" autocomplete="new-password">
-          <input class="field plain" id="npw2" type="password" placeholder="Type it again" aria-label="Confirm password" autocomplete="new-password"></li>
-      </ol>
-      <div class="merr" id="crErr"></div>
-      <div class="mrow"><button class="ghost cut" data-m="skip">Use without an account</button><button class="go cut" data-m="create">Create account</button></div>`;
-  } else {
-    box.innerHTML=`<div class="tabs"><button class="tab on" data-m="tab-signin">Sign in</button><button class="tab" data-m="tab-create">Create account</button></div>
-      <h3 id="syncTitle">Welcome back</h3>
-      <p>Sign in to load your tasks on this computer.</p>
-      <form onsubmit="return false">
-        <input class="field plain" id="uIn" value="${esc(lsGet("questlog.lastuser")||"")}" placeholder="Username" aria-label="Username" autocomplete="username" spellcheck="false" autocapitalize="off">
-        <input class="field plain" id="pwIn" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password">
-      </form>
-      <div class="merr" id="tokErr"></div>
-      <div class="mrow" style="margin-bottom:14px"><button class="ghost cut" data-m="skip">Use without an account</button><button class="go cut" data-m="pwsignin">Sign in</button></div>
-      ${forgotHTML()}
-      <p class="msmall">New here? <button class="linkish" data-m="tab-create">Create an account</button></p>`;
-  }
+
+/* sign in / create account / forgot / reset */
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/, USER_RE=/^[A-Za-z0-9_.-]{3,30}$/;
+function authField(id,label,type,extra){return `<label class="flabel" for="${id}">${label}</label><input class="field" id="${id}" type="${type||"text"}" ${extra||""}>`;}
+function openAuth(view,msg){
+  const box=$("syncBox");view=view||"signin";
+  const tabs=`<div class="tabs" role="tablist"><button class="tab ${view==="signin"?"on":""}" data-m="v-signin" role="tab">Sign in</button><button class="tab ${view==="create"?"on":""}" data-m="v-create" role="tab">Create account</button></div>`;
+  const skip=`<p class="msmall center"><button class="linkish muted" data-m="skip">Use without an account</button></p>`;
+  if(view==="signin") box.innerHTML=tabs+`<h3 id="syncTitle">Welcome back</h3>${msg?`<div class="mnote">${esc(msg)}</div>`:""}
+    ${authField("aId","Email or username","text",`value="${esc(lsGet("questlog.lastuser")||"")}" autocomplete="username" autocapitalize="off" spellcheck="false"`)}
+    ${authField("aPw","Password","password",`autocomplete="current-password"`)}
+    <div class="merr" id="aErr" role="alert"></div>
+    <button class="go cut wide" data-m="signin">Sign in</button>
+    <p class="msmall center"><button class="linkish" data-m="v-forgot">Forgot password or username?</button></p>${skip}`;
+  else if(view==="create") box.innerHTML=tabs+`<h3 id="syncTitle">Create your account</h3><p>Free. Your tasks stay private to you.</p>
+    ${authField("cEmail","Email","email",`autocomplete="email" autocapitalize="off" spellcheck="false"`)}
+    ${authField("cUser","Username","text",`autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="30"`)}
+    ${authField("cPw","Password","password",`autocomplete="new-password"`)}
+    ${authField("cPw2","Confirm password","password",`autocomplete="new-password"`)}
+    <div class="mhint">Username: 3–30 letters, numbers, dots, dashes or underscores. Password: at least 6 characters.</div>
+    <div class="merr" id="aErr" role="alert"></div>
+    <button class="go cut wide" data-m="create">Create account</button>${skip}`;
+  else if(view==="forgot") box.innerHTML=`<h3 id="syncTitle">Forgot your details?</h3>
+    <p><b>Forgot your username?</b> You can sign in with your email address instead.</p>
+    <p><b>Forgot your password?</b> Enter your email and we’ll send you a link to choose a new one.</p>
+    ${authField("fEmail","Email","email",`autocomplete="email" autocapitalize="off"`)}
+    <div class="merr" id="aErr" role="alert"></div>
+    <div class="mrow"><button class="ghost cut" data-m="v-signin">Back</button><button class="go cut" data-m="forgot">Send reset link</button></div>`;
+  else if(view==="sent") box.innerHTML=`<h3 id="syncTitle">Check your email</h3><p>If an account uses that address, a reset link is on its way. Open it on this device to choose a new password. It can take a few minutes, so check your spam folder too.</p>
+    <div class="mrow"><button class="go cut" data-m="v-signin">Back to sign in</button></div>`;
+  else if(view==="reset") box.innerHTML=`<h3 id="syncTitle">Choose a new password</h3>
+    ${authField("rPw","New password","password",`autocomplete="new-password"`)}
+    ${authField("rPw2","Confirm new password","password",`autocomplete="new-password"`)}
+    <div class="merr" id="aErr" role="alert"></div>
+    <button class="go cut wide" data-m="reset">Save new password</button>`;
   $("syncModal").classList.add("open");
-  const f=$("uIn")&&!$("uIn").value?$("uIn"):($("pwIn")||$("newKey")||$("pw1"));
-  if(f) setTimeout(()=>f.focus(),20);
+  const first=box.querySelector("input:not([value]),input[value='']")||box.querySelector("input");
+  if(first) setTimeout(()=>first.focus(),20);
 }
-function closeSync(){$("syncModal").classList.remove("open");}
-$("syncBtn").addEventListener("click",()=>openSync());
+function closeAuth(){$("syncModal").classList.remove("open");}
+const aErr=t=>{const e=$("aErr");if(e)e.textContent=t;};
+function busy(on){document.querySelectorAll("#syncBox .go").forEach(b=>{b.disabled=on;b.style.opacity=on?.6:"";});}
+async function doSignIn(){
+  const id=$("aId").value.trim(),pw=$("aPw").value;
+  if(!id||!pw) return aErr("Enter your email or username and your password.");
+  if(!sb) return aErr("Can’t reach the sign-in service. Check your connection.");
+  busy(true);aErr("Signing in…");
+  try{
+    let email=id;
+    if(!EMAIL_RE.test(id)){
+      const {data,error}=await sb.rpc("email_for_login",{login:id,pw});
+      if(error){busy(false);return aErr(/too_many/.test(error.message)?"Too many tries. Wait 15 minutes and try again.":"Couldn’t sign in. Try again.");}
+      if(!data){busy(false);return aErr("Wrong username or password.");}
+      email=data;
+    }
+    const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
+    if(error){busy(false);return aErr(/invalid/i.test(error.message)?"Wrong email or password.":error.message);}
+    closeAuth();await startSession(data.user);toast("Signed in as "+acct.username,true);
+  }catch(e){aErr("Couldn’t reach the sign-in service. Check your connection.");}
+  busy(false);
+}
+async function doCreate(){
+  const email=$("cEmail").value.trim(),user=$("cUser").value.trim(),pw=$("cPw").value,pw2=$("cPw2").value;
+  if(!EMAIL_RE.test(email)) return aErr("Enter a valid email address.");
+  if(!USER_RE.test(user)) return aErr("Usernames are 3–30 letters, numbers, dots, dashes or underscores.");
+  if(pw.length<6) return aErr("Passwords need at least 6 characters.");
+  if(pw!==pw2) return aErr("The passwords don’t match.");
+  if(!sb) return aErr("Can’t reach the sign-in service. Check your connection.");
+  busy(true);aErr("Creating your account…");
+  try{
+    const {data:free,error:e1}=await sb.rpc("username_available",{u:user});
+    if(e1) throw e1;
+    if(!free){busy(false);return aErr("That username is taken. Try another.");}
+    const {data,error}=await sb.auth.signUp({email,password:pw,options:{data:{username:user},emailRedirectTo:APP_URL}});
+    if(error){busy(false);return aErr(/registered|exists/i.test(error.message)?"An account with this email already exists. Try signing in.":/database/i.test(error.message)?"That username is taken. Try another.":error.message);}
+    if(!data.session){busy(false);openAuth("signin","Account created. Check your email to confirm it, then sign in.");return;}
+    closeAuth();await startSession(data.user);toast("Welcome, "+acct.username+"!",true);
+  }catch(e){aErr("Couldn’t reach the sign-in service. Check your connection.");}
+  busy(false);
+}
+async function doForgot(){
+  const email=$("fEmail").value.trim();
+  if(!EMAIL_RE.test(email)) return aErr("Enter the email address you signed up with.");
+  busy(true);aErr("Sending…");
+  try{const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:APP_URL});
+    if(error&&/rate|limit/i.test(error.message)){busy(false);return aErr("Too many reset emails were sent recently. Try again in an hour.");}
+    openAuth("sent");
+  }catch(e){aErr("Couldn’t send the email. Try again.");}
+  busy(false);
+}
+async function doReset(){
+  const pw=$("rPw").value,pw2=$("rPw2").value;
+  if(pw.length<6) return aErr("Passwords need at least 6 characters.");
+  if(pw!==pw2) return aErr("The passwords don’t match.");
+  busy(true);aErr("Saving…");
+  const {data,error}=await sb.auth.updateUser({password:pw});
+  busy(false);
+  if(error) return aErr(error.message);
+  recovering=false;history.replaceState(null,"",APP_URL);
+  closeAuth();await startSession(data.user);toast("Password changed",true);
+}
 $("syncModal").addEventListener("click",e=>{
-  if(e.target.id==="syncModal") return closeSync();
   const m=e.target.closest("[data-m]");if(!m) return;
   const a=m.dataset.m;
-  if(a==="tab-signin"||a==="tab-create"){acctTab=a.slice(4);openSync();return;}
-  ({close:closeSync,connect:keySignIn,signout:signOut,setpw:setPassword,pwsignin:pwSignIn,create:createAccount,invite:copyInvite,
-    skip:()=>{lsSet("questlog.skipsignin","1");closeSync();}})[a]?.();
+  if(a.startsWith("v-")) return openAuth(a.slice(2));
+  if(a==="skip"){lsSet("questlog.skipsignin","1");closeAuth();return;}
+  ({signin:doSignIn,create:doCreate,forgot:doForgot,reset:doReset})[a]?.();
 });
 $("syncModal").addEventListener("keydown",e=>{
-  if(e.key==="Escape") return closeSync();
-  if(e.key!=="Enter") return;
+  if(e.key==="Escape"&&!recovering) return closeAuth();
+  if(e.key!=="Enter"||e.target.tagName!=="INPUT") return;
+  e.preventDefault();
   const id=e.target.id;
-  if(id==="tokIn"){e.preventDefault();keySignIn();}
-  else if(id==="uIn"){e.preventDefault();$("pwIn").focus();}
-  else if(id==="pwIn"){e.preventDefault();pwSignIn();}
-  else if(id==="pw1"||id==="pw2"){e.preventDefault();setPassword();}
-  else if(id==="newKey"||id==="npw1"||id==="npw2"){e.preventDefault();createAccount();}
+  if(id==="aId") return $("aPw").focus();
+  if(id==="aPw") return doSignIn();
+  if(id==="cEmail") return $("cUser").focus();
+  if(id==="cUser") return $("cPw").focus();
+  if(id==="cPw") return $("cPw2").focus();
+  if(id==="cPw2") return doCreate();
+  if(id==="fEmail") return doForgot();
+  if(id==="rPw") return $("rPw2").focus();
+  if(id==="rPw2") return doReset();
 });
-if(GH.tok&&GH.user&&!lsGet("questlog.owner")) lsSet("questlog.owner",GH.user);
-const inClaude=!!(window.claude&&window.claude.use);
-if(!inClaude){
-  document.getElementById("syncBtn").hidden=false;
+
+/* profile menu (top right) */
+function renderProf(){
+  let el=$("profMenu");
+  if(!profOpen||!acct){if(el)el.remove();renderUser();return;}
+  if(!el){el=document.createElement("div");el.id="profMenu";el.className="profmenu cut";el.setAttribute("role","dialog");el.setAttribute("aria-label","Account");document.body.appendChild(el);}
+  const n=acct.username, pc=active().length;
+  el.innerHTML=profView==="pw"?`<div class="ptitle">Change password</div>
+      ${authField("nPw","New password","password",`autocomplete="new-password"`)}
+      ${authField("nPw2","Confirm new password","password",`autocomplete="new-password"`)}
+      <div class="merr" id="pErr" role="alert"></div>
+      <div class="mrow"><button class="ghost cut" data-p="back">Cancel</button><button class="go cut" data-p="savepw">Save</button></div>`
+    :`<div class="phero"><span class="av big" aria-hidden="true">${esc(n.charAt(0).toUpperCase())}</span><div class="pname">${esc(n)}</div></div>
+      <div class="pstat"><b>${pc}</b> ${pc===1?"project":"projects"}</div>
+      <button class="ghost cut wide" data-p="pw">Change password</button>
+      <div class="pfoot"><button class="linkish muted" data-p="signout">Sign out</button></div>`;
+  const r=$("syncBtn").getBoundingClientRect();
+  el.style.top=(r.bottom+8)+"px";el.style.right=Math.max(8,innerWidth-r.right)+"px";
   renderUser();
-  if(GH.tok){setSync("Connecting to GitHub…");gistPull();}
-  else{let skip=false;try{skip=!!localStorage.getItem("questlog.skipsignin");}catch(e){} if(!skip) openSync();}
-  const maybePull=()=>{if(GH.tok&&document.visibilityState==="visible"&&Date.now()-lastPull>15000&&!pushTimer) gistPull();};
+  if(profView==="pw") setTimeout(()=>{const i=$("nPw");if(i)i.focus();},20);
+}
+function toggleProf(open){profOpen=open==null?!profOpen:open;profView="main";renderProf();}
+async function savePw(){
+  const pw=$("nPw").value,pw2=$("nPw2").value,err=$("pErr");
+  if(pw.length<6) return err.textContent="Passwords need at least 6 characters.";
+  if(pw!==pw2) return err.textContent="The passwords don’t match.";
+  err.textContent="Saving…";
+  const {error}=await sb.auth.updateUser({password:pw});
+  if(error) return err.textContent=error.message;
+  toggleProf(false);toast("Password changed",true);
+}
+async function doSignOut(){
+  if(!confirm("Sign out on this computer?\n\nYour tasks stay safe in your account.")) return;
+  toggleProf(false);
+  if(pushTimer){clearTimeout(pushTimer);await push();}
+  try{await sb.auth.signOut();}catch(e){}
+  acct=null;state=blank();lsSet(KEY,JSON.stringify(state));lsSet("questlog.owner",null);
+  ui.view="home";saveUI();setSync("Saved on this device");render();renderUser();openAuth("signin");
+}
+$("syncBtn").addEventListener("click",e=>{e.stopPropagation();if(acct) toggleProf();else openAuth("signin");});
+document.addEventListener("click",e=>{
+  const p=e.target.closest("[data-p]");
+  if(p&&e.target.closest("#profMenu")){
+    const a=p.dataset.p;
+    if(a==="pw"){profView="pw";renderProf();}
+    else if(a==="back"){profView="main";renderProf();}
+    else if(a==="savepw") savePw();
+    else if(a==="signout") doSignOut();
+    return;
+  }
+  if(profOpen&&!e.target.closest("#profMenu,#syncBtn")) toggleProf(false);
+});
+document.addEventListener("keydown",e=>{
+  if(!profOpen) return;
+  if(e.key==="Escape"){e.stopImmediatePropagation();toggleProf(false);$("syncBtn").focus();}
+  else if(e.key==="Enter"&&e.target.closest&&e.target.closest("#profMenu")&&e.target.tagName==="INPUT"){e.preventDefault();if(e.target.id==="nPw")$("nPw2").focus();else savePw();}
+},true);
+addEventListener("resize",()=>{if(profOpen)renderProf();});
+
+async function initAuth(){
+  renderUser();
+  if(!sb){setSync("Saved on this device");return;}
+  sb.auth.onAuthStateChange((ev)=>{if(ev==="PASSWORD_RECOVERY"){recovering=true;openAuth("reset");}});
+  let session=null;
+  try{({data:{session}}=await sb.auth.getSession());}catch(e){}
+  if(recovering){openAuth("reset");return;}
+  if(session&&session.user){setSync("Loading your account…");await startSession(session.user);}
+  else{await legacyRefresh();if(!lsGet("questlog.skipsignin")) openAuth("signin");}
+  const maybePull=()=>{if(acct&&document.visibilityState==="visible"&&Date.now()-lastPull>15000&&!pushTimer) pull();};
   document.addEventListener("visibilitychange",maybePull);
-  window.addEventListener("focus",maybePull);
+  addEventListener("focus",maybePull);
   setInterval(maybePull,60000);
 }
+initAuth();
+
 
 drawFacets();render();
 })();
