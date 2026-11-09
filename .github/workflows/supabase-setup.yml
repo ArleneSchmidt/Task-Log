@@ -6,21 +6,48 @@ on:
 permissions:
   contents: write
 jobs:
-  rotate:
+  setup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Rotate database password
+      - name: Recreate and configure project
         env:
           SB: ${{ secrets.SUPABASE_TOKEN }}
         run: |
           set -u
-          NEWPW=$(openssl rand -hex 24)
-          Q=$(jq -nc --arg p "$NEWPW" '{query:("alter role postgres with password " + ($p|@json|sub("^\"";"'"'"'")|sub("\"$";"'"'"'")) + ";")}')
-          CODE=$(curl -sS -o /tmp/b -w '%{http_code}' -X POST -H "Authorization: Bearer $SB" -H "Content-Type: application/json" https://api.supabase.com/v1/projects/lsbapifsndemdowiehfe/database/query --data-binary "$Q")
-          unset NEWPW Q
-          if [ "${CODE:0:1}" = "2" ]; then R="Password rotated OK"; else R="Rotate failed HTTP $CODE: $(head -c 300 /tmp/b)"; fi
-          git rm -q --ignore-unmatch setup-status.txt
-          echo "$R" > rotate-status.txt
-          git config user.name "quest-log-setup"; git config user.email "quest-log-setup@users.noreply.github.com"
-          git add -A && git commit -qm "Rotate database password; remove old status file" && git push -q
+          A=https://api.supabase.com/v1
+          log(){ echo "$*" >> /tmp/status; }
+          api(){ local m=$1 u=$2 d=${3:-} code
+            if [ -n "$d" ]; then code=$(curl -sS -o /tmp/body -w '%{http_code}' -X "$m" -H "Authorization: Bearer $SB" -H "Content-Type: application/json" "$u" --data-binary "$d")
+            else code=$(curl -sS -o /tmp/body -w '%{http_code}' -X "$m" -H "Authorization: Bearer $SB" "$u"); fi
+            if [ "${code:0:1}" != "2" ]; then log "HTTP $code for $m ${u#$A}: $(head -c 300 /tmp/body | tr -d '\n')"; return 1; fi; cat /tmp/body; }
+          finish(){ git rm -q --ignore-unmatch rotate-status.txt setup-status.txt; cp /tmp/status setup-status.txt
+            git config user.name "quest-log-setup"; git config user.email "quest-log-setup@users.noreply.github.com"
+            git add -A; git commit -qm "Supabase setup ($1)"; git push -q; exit 0; }
+          ORG=$(api GET $A/organizations | jq -r '.[0].id // empty') || finish fail
+          if api DELETE $A/projects/lsbapifsndemdowiehfe >/dev/null; then log "Old project deleted"; else log "Old project delete skipped"; fi
+          sleep 20
+          PASS=$(openssl rand -hex 24)
+          BODY=$(jq -nc --arg o "$ORG" --arg p "$PASS" '{name:"quest-log-app",organization_id:$o,region:"ap-southeast-2",db_pass:$p}')
+          unset PASS
+          REF=""
+          for i in 1 2 3 4 5 6; do REF=$(api POST $A/projects "$BODY" | jq -r '.id // empty') && [ -n "$REF" ] && break; sleep 30; done
+          unset BODY
+          [ -n "$REF" ] || finish fail
+          log "Created project $REF"
+          for i in $(seq 1 90); do S=$(api GET $A/projects/$REF | jq -r .status); [ "$S" = "ACTIVE_HEALTHY" ] && break; sleep 10; done
+          log "Status: $S"
+          sleep 20
+          OK=""
+          for i in 1 2 3 4 5 6; do
+            if api POST $A/projects/$REF/database/query "$(jq -nc --rawfile q .github/setup.sql '{query:$q}')" >/dev/null; then OK=1; break; fi
+            sleep 20
+          done
+          [ -n "$OK" ] && log "Database ready" || finish fail
+          AUTH=$(jq -nc '{site_url:"https://arleneschmidt.github.io/Task-Log/",uri_allow_list:"https://arleneschmidt.github.io/Task-Log/**,https://arleneschmidt.github.io/Task-Log/",mailer_autoconfirm:true,password_min_length:6}')
+          api PATCH $A/projects/$REF/config/auth "$AUTH" >/dev/null && log "Auth configured" || finish fail
+          ANON=$(api GET "$A/projects/$REF/api-keys" | jq -r '[.[]|select(.name=="anon")][0].api_key // empty')
+          [ -n "$ANON" ] || { log "No anon key"; finish fail; }
+          jq -n --arg url "https://$REF.supabase.co" --arg anon "$ANON" '{url:$url,anon:$anon}' > supabase-public.json
+          log "Config written"
+          finish ok
