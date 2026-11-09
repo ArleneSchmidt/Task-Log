@@ -2,52 +2,50 @@ name: Supabase setup
 on:
   push:
     paths: ['.github/workflows/supabase-setup.yml']
-  workflow_dispatch:
 permissions:
   contents: write
 jobs:
-  setup:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Recreate and configure project
+      - name: End-to-end account test
         env:
           SB: ${{ secrets.SUPABASE_TOKEN }}
         run: |
           set -u
-          A=https://api.supabase.com/v1
           log(){ echo "$*" >> /tmp/status; }
-          api(){ local m=$1 u=$2 d=${3:-} code
-            if [ -n "$d" ]; then code=$(curl -sS -o /tmp/body -w '%{http_code}' -X "$m" -H "Authorization: Bearer $SB" -H "Content-Type: application/json" "$u" --data-binary "$d")
-            else code=$(curl -sS -o /tmp/body -w '%{http_code}' -X "$m" -H "Authorization: Bearer $SB" "$u"); fi
-            if [ "${code:0:1}" != "2" ]; then log "HTTP $code for $m ${u#$A}: $(head -c 300 /tmp/body | tr -d '\n')"; return 1; fi; cat /tmp/body; }
-          finish(){ git rm -q --ignore-unmatch rotate-status.txt setup-status.txt; cp /tmp/status setup-status.txt
-            git config user.name "quest-log-setup"; git config user.email "quest-log-setup@users.noreply.github.com"
-            git add -A; git commit -qm "Supabase setup ($1)"; git push -q; exit 0; }
-          ORG=$(api GET $A/organizations | jq -r '.[0].id // empty') || finish fail
-          if api DELETE $A/projects/lsbapifsndemdowiehfe >/dev/null; then log "Old project deleted"; else log "Old project delete skipped"; fi
-          sleep 20
-          PASS=$(openssl rand -hex 24)
-          BODY=$(jq -nc --arg o "$ORG" --arg p "$PASS" '{name:"quest-log-app",organization_id:$o,region:"ap-southeast-2",db_pass:$p}')
-          unset PASS
-          REF=""
-          for i in 1 2 3 4 5 6; do REF=$(api POST $A/projects "$BODY" | jq -r '.id // empty') && [ -n "$REF" ] && break; sleep 30; done
-          unset BODY
-          [ -n "$REF" ] || finish fail
-          log "Created project $REF"
-          for i in $(seq 1 90); do S=$(api GET $A/projects/$REF | jq -r .status); [ "$S" = "ACTIVE_HEALTHY" ] && break; sleep 10; done
-          log "Status: $S"
-          sleep 20
-          OK=""
-          for i in 1 2 3 4 5 6; do
-            if api POST $A/projects/$REF/database/query "$(jq -nc --rawfile q .github/setup.sql '{query:$q}')" >/dev/null; then OK=1; break; fi
-            sleep 20
-          done
-          [ -n "$OK" ] && log "Database ready" || finish fail
-          AUTH=$(jq -nc '{site_url:"https://arleneschmidt.github.io/Task-Log/",uri_allow_list:"https://arleneschmidt.github.io/Task-Log/**,https://arleneschmidt.github.io/Task-Log/",mailer_autoconfirm:true,password_min_length:6}')
-          api PATCH $A/projects/$REF/config/auth "$AUTH" >/dev/null && log "Auth configured" || finish fail
-          ANON=$(api GET "$A/projects/$REF/api-keys" | jq -r '[.[]|select(.name=="anon")][0].api_key // empty')
-          [ -n "$ANON" ] || { log "No anon key"; finish fail; }
-          jq -n --arg url "https://$REF.supabase.co" --arg anon "$ANON" '{url:$url,anon:$anon}' > supabase-public.json
-          log "Config written"
-          finish ok
+          URL=$(jq -r .url supabase-public.json); ANON=$(jq -r .anon supabase-public.json); REF=${URL#https://}; REF=${REF%%.*}
+          H=(-H "apikey: $ANON" -H "Content-Type: application/json")
+          R=$RANDOM$RANDOM; EMAIL="ql.test.$R@questlogtest.dev"; USER="tester$R"; PW="pass$R"
+          S=$(curl -s "${H[@]}" "$URL/auth/v1/signup" -d "$(jq -nc --arg e "$EMAIL" --arg p "$PW" --arg u "$USER" '{email:$e,password:$p,data:{username:$u}}')")
+          TOK=$(echo "$S" | jq -r '.access_token // empty'); UID=$(echo "$S" | jq -r '.user.id // .id // empty')
+          [ -n "$TOK" ] && log "signup: ok (instant sign-in)" || log "signup: $(echo "$S" | head -c 300)"
+          log "username taken check: $(curl -s "${H[@]}" "$URL/rest/v1/rpc/username_available" -d "{\"u\":\"$USER\"}")  (expect false)"
+          log "username free check: $(curl -s "${H[@]}" "$URL/rest/v1/rpc/username_available" -d '{"u":"nobody_here_123"}')  (expect true)"
+          W=$(curl -s "${H[@]}" "$URL/rest/v1/rpc/email_for_login" -d "$(jq -nc --arg l "$USER" '{login:$l,pw:"wrongpass"}')")
+          log "login lookup wrong password: $W (expect null)"
+          G=$(curl -s "${H[@]}" "$URL/rest/v1/rpc/email_for_login" -d "$(jq -nc --arg l "${USER^^}" --arg p "$PW" '{login:$l,pw:$p}')")
+          [ "$G" = "\"$EMAIL\"" ] && log "login lookup right password (any case): ok" || log "login lookup right password: unexpected $G"
+          L=$(curl -s "${H[@]}" "$URL/auth/v1/token?grant_type=password" -d "$(jq -nc --arg e "$EMAIL" --arg p "$PW" '{email:$e,password:$p}')" | jq -r '.access_token // empty')
+          [ -n "$L" ] && log "password sign-in: ok" || log "password sign-in: failed"
+          P=$(curl -s "${H[@]}" -H "Authorization: Bearer $L" "$URL/rest/v1/profiles?select=username")
+          log "own profile: $P"
+          U=$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -H "Authorization: Bearer $L" -H "Prefer: resolution=merge-duplicates" "$URL/rest/v1/user_data" -d "$(jq -nc --arg id "$UID" '{user_id:$id,data:{projects:[{id:"x",name:"Test"}]},updated_at:123}')")
+          log "save tasks: HTTP $U (expect 201)"
+          U2=$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -H "Authorization: Bearer $L" -H "Prefer: resolution=merge-duplicates" "$URL/rest/v1/user_data" -d "$(jq -nc --arg id "$UID" '{user_id:$id,data:{projects:[]},updated_at:456}')")
+          log "save again (upsert): HTTP $U2"
+          log "read own tasks: $(curl -s "${H[@]}" -H "Authorization: Bearer $L" "$URL/rest/v1/user_data?select=updated_at")"
+          log "anonymous read of tasks: $(curl -s "${H[@]}" "$URL/rest/v1/user_data?select=user_id") (expect [])"
+          log "anonymous read of emails: $(curl -s "${H[@]}" "$URL/rest/v1/profiles?select=email") (expect [])"
+          log "anonymous read of attempts: $(curl -s "${H[@]}" "$URL/rest/v1/login_attempts?select=*") (expect [] or error)"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -H "Authorization: Bearer $L" "$URL/auth/v1/user" -X PUT -d '{"password":"newpass123"}')
+          log "change password: HTTP $CODE (expect 200)"
+          SR=$(curl -s -H "Authorization: Bearer $SB" "https://api.supabase.com/v1/projects/$REF/api-keys" | jq -r '[.[]|select(.name=="service_role")][0].api_key')
+          DEL=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -H "apikey: $SR" -H "Authorization: Bearer $SR" "$URL/auth/v1/admin/users/$UID")
+          unset SR
+          log "test user cleaned up: HTTP $DEL"
+          git rm -q --ignore-unmatch setup-status.txt rotate-status.txt
+          cp /tmp/status test-status.txt
+          git config user.name "quest-log-setup"; git config user.email "quest-log-setup@users.noreply.github.com"
+          git add -A && git commit -qm "Account test results" && git push -q
