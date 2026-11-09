@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo 'run 2'
+      - run: echo 'run 3'
       - name: Create and configure Supabase project
         env:
           SB: ${{ secrets.SUPABASE_TOKEN }}
@@ -22,8 +22,14 @@ jobs:
             if [ -n "$d" ]; then code=$(curl -sS -o /tmp/body -w '%{http_code}' -X "$m" -H "Authorization: Bearer $SB" -H "Content-Type: application/json" "$u" --data-binary "$d")
             else code=$(curl -sS -o /tmp/body -w '%{http_code}' -X "$m" -H "Authorization: Bearer $SB" "$u"); fi
             if [ "${code:0:1}" != "2" ]; then echo "::error::HTTP $code for $m ${u#$A}: $(head -c 400 /tmp/body | tr -d '\n\r')"; return 1; fi; cat /tmp/body; }
-          ORG=$(api GET $A/organizations | jq -r '.[0].id') || exit 1
-          [ -n "$ORG" ] && [ "$ORG" != "null" ] || { echo "::error::No organisation found"; exit 1; }
+          ORGS=$(api GET $A/organizations) || exit 1
+          echo "Organisations found: $(echo "$ORGS" | jq 'length')"
+          ORG=$(echo "$ORGS" | jq -r '.[0].id // empty')
+          if [ -z "$ORG" ]; then
+            ORG=$(api POST $A/organizations '{"name":"Quest Log"}' | jq -r '.id // .slug // empty') || exit 1
+            echo "Created organisation"
+          fi
+          [ -n "$ORG" ] || { echo "Could not get an organisation"; exit 1; }
           echo "Organisation ok"
           REF=$(api GET $A/projects | jq -r '[.[]|select(.name=="quest-log")][0].id // empty') || exit 1
           if [ -z "$REF" ]; then
